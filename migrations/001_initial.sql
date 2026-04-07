@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS memories (
   token_estimate   INTEGER NOT NULL DEFAULT 0,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_recalled_at TIMESTAMPTZ,
+  topic            TEXT,
   PRIMARY KEY (owner_id, id)
 );
 

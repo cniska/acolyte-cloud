@@ -8,6 +8,7 @@ export const memoryRecordSchema = z.object({
   createdAt: z.string().min(1),
   tokenEstimate: z.number().int().min(0),
   lastRecalledAt: z.string().nullable().optional(),
+  topic: z.string().nullable().optional(),
 });
 
 export const writeMemorySchema = z.object({

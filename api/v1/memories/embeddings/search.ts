@@ -41,7 +41,7 @@ export default async function handler(req: Request) {
   const sql = getDb();
   const rows = await sql(
     `SELECT m.id, m.scope_key AS "scopeKey", m.kind, m.content, m.token_estimate AS "tokenEstimate",
-            m.created_at AS "createdAt", m.last_recalled_at AS "lastRecalledAt"
+            m.created_at AS "createdAt", m.last_recalled_at AS "lastRecalledAt", m.topic
      FROM memory_embeddings e
      JOIN memories m ON m.owner_id = e.owner_id AND m.id = e.id
      WHERE ${conditions.join(" AND ")}

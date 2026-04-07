@@ -33,7 +33,7 @@ export default async function handler(req: Request) {
 
     const rows = await sql(
       `SELECT id, scope_key AS "scopeKey", kind, content, token_estimate AS "tokenEstimate",
-              created_at AS "createdAt", last_recalled_at AS "lastRecalledAt"
+              created_at AS "createdAt", last_recalled_at AS "lastRecalledAt", topic
        FROM memories WHERE ${conditions.join(" AND ")}
        ORDER BY created_at DESC`,
       params,
@@ -48,12 +48,13 @@ export default async function handler(req: Request) {
     if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
     const { record } = parsed.data;
     await sql(
-      `INSERT INTO memories (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `INSERT INTO memories (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (owner_id, id) DO UPDATE SET
          scope_key = EXCLUDED.scope_key, kind = EXCLUDED.kind, content = EXCLUDED.content,
-         token_estimate = EXCLUDED.token_estimate, last_recalled_at = EXCLUDED.last_recalled_at`,
-      [record.id, ownerId, record.scopeKey, record.kind, record.content, record.tokenEstimate, record.createdAt, record.lastRecalledAt ?? null],
+         token_estimate = EXCLUDED.token_estimate, last_recalled_at = EXCLUDED.last_recalled_at,
+         topic = EXCLUDED.topic`,
+      [record.id, ownerId, record.scopeKey, record.kind, record.content, record.tokenEstimate, record.createdAt, record.lastRecalledAt ?? null, record.topic ?? null],
     );
     return new Response(null, { status: 204 });
   }
