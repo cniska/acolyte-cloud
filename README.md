@@ -4,44 +4,33 @@ Cloud API for [Acolyte](https://acolyte.sh) — portable agent identity across m
 
 Vercel Edge Functions fronting Neon Postgres with pgvector for memory embeddings and session storage.
 
-## Setup
+## Quick start
 
 1. Create a [Neon](https://neon.tech) database (free tier works)
-2. Install dependencies and configure:
+2. Run setup — prompts for the connection string, generates keypair, runs migrations:
 
 ```bash
 pnpm install
-cp .env.example .env
-# Set DATABASE_URL to your Neon connection string
+pnpm setup
 ```
 
-3. Run migrations:
+3. Deploy to Vercel:
 
 ```bash
-pnpm migrate
+vercel link
+cat public.pem | vercel env add JWT_SECRET production
+vercel env add DATABASE_URL production
+vercel deploy --prod
 ```
 
-## Auth
+## Scripts
 
-Generate an Ed25519 keypair — the private key signs tokens (CLI side), the public key verifies them (server side):
-
-```bash
-openssl genpkey -algorithm ed25519 -out private.pem
-openssl pkey -in private.pem -pubout -out public.pem
-```
-
-Sign a token:
-
-```bash
-pnpm sign-token <user-id>
-```
-
-## Deploy
-
-1. Link to Vercel: `vercel link`
-2. Set env vars: `DATABASE_URL` (Neon connection string) and `JWT_SECRET` (contents of `public.pem`)
-3. Deploy: `vercel deploy --prod`
-4. Optionally add a custom domain: `vercel domains add cloud.yourdomain.sh`
+| Script | Description |
+|--------|-------------|
+| `pnpm setup` | Interactive setup (env, keypair, migrations) |
+| `pnpm migrate` | Run database migrations |
+| `pnpm sign-token <user-id>` | Generate a signed JWT |
+| `pnpm verify` | Typecheck |
 
 ## API
 

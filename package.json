@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "setup": "tsx scripts/setup.ts",
     "migrate": "tsx scripts/migrate.ts",
     "sign-token": "tsx scripts/sign-token.ts",
     "verify": "pnpm typecheck"
