@@ -1,5 +1,6 @@
 import { verifyAuth } from "../../../../src/auth.js";
 import { getDb } from "../../../../src/db.js";
+import { base64ToVector, parseJson } from "../../../../src/parse.js";
 import { writeEmbeddingSchema } from "../../../../src/schemas.js";
 
 export const config = { runtime: "edge" };
@@ -10,13 +11,14 @@ export default async function handler(req: Request) {
   const auth = await verifyAuth(req);
   if (!auth.ok) return auth.error;
 
-  const parsed = writeEmbeddingSchema.safeParse(await req.json());
+  const body = await parseJson(req);
+  if (!body) return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  const parsed = writeEmbeddingSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
   const { id, scopeKey, embedding } = parsed.data;
 
-  const binary = Buffer.from(embedding, "base64");
-  const floats = new Float32Array(binary.buffer, binary.byteOffset, binary.byteLength / 4);
-  const pgVector = `[${Array.from(floats).join(",")}]`;
+  const pgVector = base64ToVector(embedding);
+  if (!pgVector) return Response.json({ error: "Invalid embedding" }, { status: 400 });
 
   const sql = getDb();
   await sql(

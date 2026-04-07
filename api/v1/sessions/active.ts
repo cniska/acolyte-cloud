@@ -1,5 +1,6 @@
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
+import { parseJson } from "../../../src/parse.js";
 import { setActiveSessionSchema } from "../../../src/schemas.js";
 
 export const config = { runtime: "edge" };
@@ -19,7 +20,9 @@ export default async function handler(req: Request) {
   }
 
   if (req.method === "PUT") {
-    const parsed = setActiveSessionSchema.safeParse(await req.json());
+    const body = await parseJson(req);
+    if (!body) return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    const parsed = setActiveSessionSchema.safeParse(body);
     if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
     const { id } = parsed.data;
     await sql(

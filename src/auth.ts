@@ -27,8 +27,8 @@ let cachedKey: CryptoKey | null = null;
 
 async function getVerifyKey(): Promise<CryptoKey> {
   if (cachedKey) return cachedKey;
-  const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("JWT_SECRET is not set");
+  const secret = process.env.JWT_PUBLIC_KEY;
+  if (!secret) throw new Error("JWT_PUBLIC_KEY is not set");
   cachedKey = await importSPKI(secret, "EdDSA");
   return cachedKey;
 }

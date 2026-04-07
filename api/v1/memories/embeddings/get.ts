@@ -1,5 +1,6 @@
 import { verifyAuth } from "../../../../src/auth.js";
 import { getDb } from "../../../../src/db.js";
+import { parseJson, vectorToBase64 } from "../../../../src/parse.js";
 import { getEmbeddingsSchema } from "../../../../src/schemas.js";
 
 export const config = { runtime: "edge" };
@@ -10,7 +11,9 @@ export default async function handler(req: Request) {
   const auth = await verifyAuth(req);
   if (!auth.ok) return auth.error;
 
-  const parsed = getEmbeddingsSchema.safeParse(await req.json());
+  const body = await parseJson(req);
+  if (!body) return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  const parsed = getEmbeddingsSchema.safeParse(body);
   if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
   const { ids } = parsed.data;
   if (ids.length === 0) return Response.json({ embeddings: {} });
@@ -24,10 +27,7 @@ export default async function handler(req: Request) {
 
   const embeddings: Record<string, string> = {};
   for (const row of rows) {
-    const floats = JSON.parse(row.embedding as string) as number[];
-    const buf = Buffer.alloc(floats.length * 4);
-    for (let i = 0; i < floats.length; i++) buf.writeFloatLE(floats[i], i * 4);
-    embeddings[row.id as string] = buf.toString("base64");
+    embeddings[row.id as string] = vectorToBase64(row.embedding as string);
   }
   return Response.json({ embeddings });
 }

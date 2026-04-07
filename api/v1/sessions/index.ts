@@ -1,5 +1,6 @@
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
+import { parseJson } from "../../../src/parse.js";
 import { saveSessionSchema } from "../../../src/schemas.js";
 
 export const config = { runtime: "edge" };
@@ -25,9 +26,11 @@ export default async function handler(req: Request) {
   }
 
   if (req.method === "POST") {
-    const parsed = saveSessionSchema.safeParse(await req.json());
+    const body = await parseJson(req);
+    if (!body) return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    const parsed = saveSessionSchema.safeParse(body);
     if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
-    const s = parsed.data;
+    const session = parsed.data;
     await sql(
       `INSERT INTO sessions (id, owner_id, created_at, updated_at, model, title, workspace, workspace_name, workspace_branch, messages, token_usage)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -36,7 +39,7 @@ export default async function handler(req: Request) {
          workspace = EXCLUDED.workspace, workspace_name = EXCLUDED.workspace_name,
          workspace_branch = EXCLUDED.workspace_branch, messages = EXCLUDED.messages,
          token_usage = EXCLUDED.token_usage`,
-      [s.id, ownerId, s.createdAt, s.updatedAt, s.model, s.title, s.workspace ?? null, s.workspaceName ?? null, s.workspaceBranch ?? null, JSON.stringify(s.messages), JSON.stringify(s.tokenUsage)],
+      [session.id, ownerId, session.createdAt, session.updatedAt, session.model, session.title, session.workspace ?? null, session.workspaceName ?? null, session.workspaceBranch ?? null, JSON.stringify(session.messages), JSON.stringify(session.tokenUsage)],
     );
     return new Response(null, { status: 204 });
   }

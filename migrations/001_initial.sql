@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
-CREATE TABLE memories (
+CREATE TABLE IF NOT EXISTS memories (
   id               TEXT NOT NULL,
   owner_id         TEXT NOT NULL,
   scope_key        TEXT NOT NULL,
@@ -12,10 +12,10 @@ CREATE TABLE memories (
   PRIMARY KEY (owner_id, id)
 );
 
-CREATE INDEX idx_memories_scope ON memories (owner_id, scope_key);
-CREATE INDEX idx_memories_kind ON memories (owner_id, kind);
+CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories (owner_id, scope_key);
+CREATE INDEX IF NOT EXISTS idx_memories_kind ON memories (owner_id, kind);
 
-CREATE TABLE memory_embeddings (
+CREATE TABLE IF NOT EXISTS memory_embeddings (
   id        TEXT NOT NULL,
   owner_id  TEXT NOT NULL,
   scope_key TEXT NOT NULL,
@@ -23,9 +23,9 @@ CREATE TABLE memory_embeddings (
   PRIMARY KEY (owner_id, id)
 );
 
-CREATE INDEX idx_embeddings_scope ON memory_embeddings (owner_id, scope_key);
+CREATE INDEX IF NOT EXISTS idx_embeddings_scope ON memory_embeddings (owner_id, scope_key);
 
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
   id               TEXT NOT NULL,
   owner_id         TEXT NOT NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -40,9 +40,9 @@ CREATE TABLE sessions (
   PRIMARY KEY (owner_id, id)
 );
 
-CREATE INDEX idx_sessions_updated ON sessions (owner_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions (owner_id, updated_at DESC);
 
-CREATE TABLE active_sessions (
+CREATE TABLE IF NOT EXISTS active_sessions (
   owner_id   TEXT PRIMARY KEY,
   session_id TEXT
 );

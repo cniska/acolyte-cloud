@@ -1,8 +1,11 @@
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
+import { parseJson } from "../../../src/parse.js";
 import { writeMemorySchema } from "../../../src/schemas.js";
 
 export const config = { runtime: "edge" };
+
+const VALID_KINDS = new Set(["observation", "stored"]);
 
 export default async function handler(req: Request) {
   const auth = await verifyAuth(req);
@@ -14,6 +17,8 @@ export default async function handler(req: Request) {
   if (req.method === "GET") {
     const scopeKey = url.searchParams.get("scopeKey");
     const kind = url.searchParams.get("kind");
+    if (kind && !VALID_KINDS.has(kind)) return Response.json({ error: "Invalid kind" }, { status: 400 });
+
     const conditions = ["owner_id = $1"];
     const params: unknown[] = [ownerId];
 
@@ -37,7 +42,9 @@ export default async function handler(req: Request) {
   }
 
   if (req.method === "POST") {
-    const parsed = writeMemorySchema.safeParse(await req.json());
+    const body = await parseJson(req);
+    if (!body) return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    const parsed = writeMemorySchema.safeParse(body);
     if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
     const { record } = parsed.data;
     await sql(

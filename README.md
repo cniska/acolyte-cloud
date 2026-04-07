@@ -18,7 +18,7 @@ pnpm setup
 
 ```bash
 vercel link
-cat public.pem | vercel env add JWT_SECRET production
+cat public.pem | vercel env add JWT_PUBLIC_KEY production
 vercel env add DATABASE_URL production
 vercel deploy --prod
 ```
