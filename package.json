@@ -6,6 +6,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "migrate": "tsx scripts/migrate.ts",
+    "sign-token": "tsx scripts/sign-token.ts",
     "verify": "pnpm typecheck"
   },
   "dependencies": {
