@@ -1,25 +1,27 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
+import { writeMemorySchema } from "../../../src/schemas.js";
 
 export const config = { runtime: "edge" };
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const auth = await verifyAuth(req as unknown as Request);
-  if (!auth.ok) return res.status(401).json({ error: "Unauthorized" });
+export default async function handler(req: Request) {
+  const auth = await verifyAuth(req);
+  if (!auth.ok) return auth.error;
   const { ownerId } = auth;
   const sql = getDb();
+  const url = new URL(req.url);
 
   if (req.method === "GET") {
-    const { scopeKey, kind } = req.query;
+    const scopeKey = url.searchParams.get("scopeKey");
+    const kind = url.searchParams.get("kind");
     const conditions = ["owner_id = $1"];
     const params: unknown[] = [ownerId];
 
-    if (typeof scopeKey === "string") {
+    if (scopeKey) {
       conditions.push(`scope_key = $${params.length + 1}`);
       params.push(scopeKey);
     }
-    if (typeof kind === "string") {
+    if (kind) {
       conditions.push(`kind = $${params.length + 1}`);
       params.push(kind);
     }
@@ -31,11 +33,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        ORDER BY created_at DESC`,
       params,
     );
-    return res.json(rows);
+    return Response.json(rows);
   }
 
   if (req.method === "POST") {
-    const { record } = req.body;
+    const parsed = writeMemorySchema.safeParse(await req.json());
+    if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
+    const { record } = parsed.data;
     await sql(
       `INSERT INTO memories (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -44,8 +48,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          token_estimate = EXCLUDED.token_estimate, last_recalled_at = EXCLUDED.last_recalled_at`,
       [record.id, ownerId, record.scopeKey, record.kind, record.content, record.tokenEstimate, record.createdAt, record.lastRecalledAt ?? null],
     );
-    return res.status(204).end();
+    return new Response(null, { status: 204 });
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  return Response.json({ error: "Method not allowed" }, { status: 405 });
 }

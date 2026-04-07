@@ -1,12 +1,14 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const auth = await verifyAuth(req as unknown as Request);
-  if (!auth.ok) return res.status(401).json({ error: "Unauthorized" });
+export const config = { runtime: "edge" };
 
-  const id = req.query.id as string;
+export default async function handler(req: Request) {
+  const auth = await verifyAuth(req);
+  if (!auth.ok) return auth.error;
+
+  const url = new URL(req.url);
+  const id = url.pathname.split("/").pop()!;
   const sql = getDb();
 
   if (req.method === "GET") {
@@ -17,13 +19,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
        FROM sessions WHERE owner_id = $1 AND id = $2`,
       [auth.ownerId, id],
     );
-    return res.json(rows[0] ?? null);
+    return Response.json(rows[0] ?? null);
   }
 
   if (req.method === "DELETE") {
     await sql("DELETE FROM sessions WHERE owner_id = $1 AND id = $2", [auth.ownerId, id]);
-    return res.status(204).end();
+    return new Response(null, { status: 204 });
   }
 
-  return res.status(405).json({ error: "Method not allowed" });
+  return Response.json({ error: "Method not allowed" }, { status: 405 });
 }

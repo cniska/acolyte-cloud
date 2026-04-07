@@ -10,11 +10,11 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "jose": "^6.0.8"
+    "jose": "^6.0.8",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^22.15.2",
-    "@vercel/node": "^5.1.8",
     "tsx": "^4.19.4",
     "typescript": "^5.9.3"
   }

@@ -1,14 +1,19 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { verifyAuth } from "../../../../src/auth.js";
 import { getDb } from "../../../../src/db.js";
+import { searchEmbeddingsSchema } from "../../../../src/schemas.js";
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+export const config = { runtime: "edge" };
 
-  const auth = await verifyAuth(req as unknown as Request);
-  if (!auth.ok) return res.status(401).json({ error: "Unauthorized" });
+export default async function handler(req: Request) {
+  if (req.method !== "POST") return Response.json({ error: "Method not allowed" }, { status: 405 });
 
-  const { queryEmbedding, scopeKey, kind, limit } = req.body;
+  const auth = await verifyAuth(req);
+  if (!auth.ok) return auth.error;
+
+  const parsed = searchEmbeddingsSchema.safeParse(await req.json());
+  if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
+  const { queryEmbedding, scopeKey, kind, limit } = parsed.data;
+
   const binary = Buffer.from(queryEmbedding, "base64");
   const floats = new Float32Array(binary.buffer, binary.byteOffset, binary.byteLength / 4);
   const pgVector = `[${Array.from(floats).join(",")}]`;
@@ -29,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   params.push(pgVector);
 
   const limitParam = `$${params.length + 1}`;
-  params.push(limit ?? 10);
+  params.push(limit);
 
   const sql = getDb();
   const rows = await sql(
@@ -42,5 +47,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
      LIMIT ${limitParam}`,
     params,
   );
-  return res.json(rows);
+  return Response.json(rows);
 }
