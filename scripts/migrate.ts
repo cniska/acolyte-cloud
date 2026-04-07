@@ -18,7 +18,13 @@ const files = readdirSync(migrationsDir)
 for (const file of files) {
   console.log(`Running ${file}...`);
   const content = readFileSync(join(migrationsDir, file), "utf-8");
-  await sql(content);
+  const statements = content
+    .split(/;\s*\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const stmt of statements) {
+    await sql(stmt);
+  }
   console.log(`Done: ${file}`);
 }
 
