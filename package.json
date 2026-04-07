@@ -8,7 +8,8 @@
     "setup": "tsx scripts/setup.ts",
     "migrate": "tsx scripts/migrate.ts",
     "sign-token": "tsx scripts/sign-token.ts",
-    "verify": "pnpm typecheck"
+    "test": "vitest run",
+    "verify": "pnpm typecheck && pnpm test"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
@@ -18,6 +19,7 @@
   "devDependencies": {
     "@types/node": "^22.15.2",
     "tsx": "^4.19.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.3"
   }
 }
