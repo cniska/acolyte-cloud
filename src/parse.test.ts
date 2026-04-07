@@ -1,5 +1,29 @@
 import { describe, expect, test } from "vitest";
-import { base64ToVector, extractId, vectorToBase64 } from "./parse.js";
+import { base64ToVector, extractId, parseJson, vectorToBase64 } from "./parse.js";
+
+describe("parseJson", () => {
+  test("parses valid JSON body", async () => {
+    const req = new Request("https://example.com", {
+      method: "POST",
+      body: JSON.stringify({ foo: "bar" }),
+      headers: { "content-type": "application/json" },
+    });
+    expect(await parseJson(req)).toEqual({ foo: "bar" });
+  });
+
+  test("returns null for invalid JSON", async () => {
+    const req = new Request("https://example.com", {
+      method: "POST",
+      body: "not json",
+    });
+    expect(await parseJson(req)).toBeNull();
+  });
+
+  test("returns null for empty body", async () => {
+    const req = new Request("https://example.com", { method: "POST" });
+    expect(await parseJson(req)).toBeNull();
+  });
+});
 
 describe("base64ToVector", () => {
   test("converts valid base64 float32 array to pgvector string", () => {
