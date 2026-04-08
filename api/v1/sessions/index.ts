@@ -1,5 +1,6 @@
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
+import { stripNulls } from "../../../src/json.js";
 import { parseJson } from "../../../src/parse.js";
 import { saveSessionSchema } from "../../../src/schemas.js";
 
@@ -22,7 +23,7 @@ export default async function handler(req: Request) {
        ORDER BY updated_at DESC LIMIT $2`,
       [ownerId, limit],
     );
-    return Response.json(rows);
+    return Response.json(rows.map(stripNulls));
   }
 
   if (req.method === "POST") {

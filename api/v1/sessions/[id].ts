@@ -1,5 +1,6 @@
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
+import { stripNulls } from "../../../src/json.js";
 import { extractId } from "../../../src/parse.js";
 
 export const config = { runtime: "edge" };
@@ -19,7 +20,8 @@ export default async function handler(req: Request) {
        FROM sessions WHERE owner_id = $1 AND id = $2`,
       [auth.ownerId, id],
     );
-    return Response.json(rows[0] ?? null);
+    const row = rows[0];
+    return Response.json(row ? stripNulls(row) : null);
   }
 
   if (req.method === "DELETE") {
