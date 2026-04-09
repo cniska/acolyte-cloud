@@ -50,6 +50,17 @@ export const saveSessionSchema = z.object({
   tokenUsage: z.array(z.unknown()),
 });
 
+export const appendSessionSchema = z.object({
+  messages: z.array(z.unknown()).min(1).optional(),
+  tokenUsage: z.array(z.unknown()).min(1).optional(),
+  updatedAt: z.string().min(1),
+  model: z.string().min(1).optional(),
+  title: z.string().optional(),
+  workspace: z.string().optional(),
+  workspaceName: z.string().optional(),
+  workspaceBranch: z.string().optional(),
+});
+
 export const setActiveSessionSchema = z.object({
   id: z.string().nullable(),
 });

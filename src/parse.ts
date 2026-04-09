@@ -1,5 +1,11 @@
 export async function parseJson(req: Request): Promise<unknown | null> {
   try {
+    const encoding = req.headers.get("content-encoding");
+    if (encoding === "gzip" && req.body) {
+      const decompressed = req.body.pipeThrough(new DecompressionStream("gzip"));
+      const text = await new Response(decompressed).text();
+      return JSON.parse(text);
+    }
     return await req.json();
   } catch {
     return null;
