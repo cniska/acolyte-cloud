@@ -30,3 +30,8 @@ export function extractId(req: Request): string {
   const url = new URL(req.url);
   return decodeURIComponent(url.pathname.split("/").pop()!);
 }
+
+export function extractParentId(req: Request): string {
+  const segments = new URL(req.url).pathname.split("/");
+  return decodeURIComponent(segments[segments.length - 2]);
+}

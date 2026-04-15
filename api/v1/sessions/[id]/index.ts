@@ -1,8 +1,8 @@
-import { verifyAuth } from "../../../src/auth.js";
-import { getDb } from "../../../src/db.js";
-import { stripNulls } from "../../../src/json.js";
-import { extractId, parseJson } from "../../../src/parse.js";
-import { appendSessionSchema } from "../../../src/schemas.js";
+import { verifyAuth } from "../../../../src/auth.js";
+import { getDb } from "../../../../src/db.js";
+import { stripNulls } from "../../../../src/json.js";
+import { extractId, parseJson } from "../../../../src/parse.js";
+import { appendSessionSchema } from "../../../../src/schemas.js";
 
 export const config = { runtime: "edge" };
 

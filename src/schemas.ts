@@ -61,6 +61,11 @@ export const appendSessionSchema = z.object({
   workspaceBranch: z.string().optional(),
 });
 
+export const searchSessionSchema = z.object({
+  query: z.string().min(1),
+  limit: z.number().int().min(1).max(50).optional(),
+});
+
 export const setActiveSessionSchema = z.object({
   id: z.string().nullable(),
 });
