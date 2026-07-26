@@ -37,7 +37,7 @@ const nextVersion =
       : `${major}.${minor}.${patch + 1}`;
 const latestTag = run("git", ["tag", "--sort=-version:refname", "--list", "cloud-contract-v*"]).split("\n")[0];
 const commitRange = latestTag ? `${latestTag}..HEAD` : "HEAD";
-const commits = run("git", ["log", commitRange, "--format=- %s", "--no-merges"]);
+const commits = run("git", ["log", commitRange, "--format=- %s", "--no-merges", "--", "packages/cloud-contract"]);
 if (!commits) {
   throw new Error("No commits to release.");
 }
