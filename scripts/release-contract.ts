@@ -52,7 +52,7 @@ writeFileSync(packagePath, `${JSON.stringify(pkg, null, 2)}\n`);
 const date = new Date().toISOString().slice(0, 10);
 writeFileSync(
   changelogPath,
-  `# Changelog\n\n## ${nextVersion} - ${date}\n\n${commits}\n\n${readFileSync(changelogPath, "utf8").replace(/^# Changelog\n\n/, "")}`,
+  `# Changelog\n\n## ${nextVersion} - ${date}\n\n${commits}\n\n${readFileSync(changelogPath, "utf8").replace(/^# Changelog\n+/, "")}`,
 );
 
 run("git", ["add", packagePath, changelogPath]);
