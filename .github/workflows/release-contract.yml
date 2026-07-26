@@ -31,7 +31,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
       - name: Verify tag version
-        run: test "${GITHUB_REF_NAME#cloud-contract-v}" = "$(node -p \"require('./packages/cloud-contract/package.json').version\")"
+        run: |
+          tag_version="${GITHUB_REF_NAME#cloud-contract-v}"
+          package_version="$(node -p "require('./packages/cloud-contract/package.json').version")"
+          test "$tag_version" = "$package_version"
       - name: Publish package
         run: npm publish --access public --provenance
         working-directory: packages/cloud-contract
