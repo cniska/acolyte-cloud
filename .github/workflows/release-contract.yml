@@ -1,0 +1,41 @@
+name: Release cloud contract
+
+on:
+  push:
+    tags:
+      - "cloud-contract-v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-contract-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: npm install --global npm@latest
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - name: Verify tag version
+        run: test "${GITHUB_REF_NAME#cloud-contract-v}" = "$(node -p \"require('./packages/cloud-contract/package.json').version\")"
+      - name: Publish package
+        run: npm publish --access public --provenance
+        working-directory: packages/cloud-contract
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

@@ -1,6 +1,6 @@
 {
   "name": "@acolyte/cloud-contract",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Wire contracts for Acolyte Cloud",
   "license": "MIT",
   "type": "module",
