@@ -108,7 +108,7 @@ All endpoints require `Authorization: Bearer <token>` (EdDSA JWT).
 
 ## Publish the contract package
 
-`@acolyte/cloud-contract` defines the request and response schemas shared by the API and its consumers. Before the first release, configure npm trusted publishing for this repository and `.github/workflows/release-contract.yml`.
+[`@acolyte/cloud-contract`](https://www.npmjs.com/package/@acolyte/cloud-contract) defines the request and response schemas shared by the API and its consumers. Before the first release, configure npm trusted publishing for this repository and `.github/workflows/release-contract.yml`.
 
 Run the `ship` gate, then release with `pnpm release:contract <major|minor|patch>`. The command verifies the repository, writes the version and changelog, creates a `cloud-contract-v<version>` tag, and prints the two manual push commands. Pushing that tag publishes the package to npm with provenance and creates a GitHub release.
 
