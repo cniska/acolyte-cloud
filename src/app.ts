@@ -14,6 +14,7 @@ import {
 } from "@acolyte/cloud-contract";
 import { apiReference } from "@scalar/hono-api-reference";
 import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import type { Context } from "hono";
 import { verifyAuth } from "./auth.js";
 import { getDb } from "./db.js";
 import { stripNulls } from "./json.js";
@@ -27,9 +28,47 @@ const tags = {
 };
 const bearerSecurity = [{ bearerAuth: [] }];
 const noContent = { 204: { description: "No content" } };
+const scalarCdn = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.63.0";
 const validMemoryKinds = new Set(["observation", "stored"]);
 const errorResponse = (error: string) => Response.json({ error }, { status: 400 });
 const healthResponseSchema = z.object({ status: z.literal("ok") }).openapi("HealthResponse");
+
+async function appendSession(c: Context) {
+  const owner = await ownerId(c.req.raw);
+  if (isResponse(owner)) return owner;
+  const body = await parseJson(c.req.raw);
+  if (!body) return errorResponse("Invalid JSON");
+  const parsed = appendSessionSchema.safeParse(body);
+  if (!parsed.success) return errorResponse(parsed.error.message);
+  const { messages, tokenUsage, updatedAt, model, title, workspace, workspaceName, workspaceBranch } = parsed.data;
+  const sets = ["updated_at = $3"];
+  const params: unknown[] = [owner, c.req.param("id"), updatedAt];
+  if (messages) {
+    sets.push(`messages = messages || $${params.length + 1}::jsonb`);
+    params.push(JSON.stringify(messages));
+  }
+  if (tokenUsage) {
+    sets.push(`token_usage = token_usage || $${params.length + 1}::jsonb`);
+    params.push(JSON.stringify(tokenUsage));
+  }
+  for (const [column, value] of [
+    ["model", model],
+    ["title", title],
+    ["workspace", workspace],
+    ["workspace_name", workspaceName],
+    ["workspace_branch", workspaceBranch],
+  ] as const) {
+    if (value !== undefined) {
+      sets.push(`${column} = $${params.length + 1}`);
+      params.push(value);
+    }
+  }
+  const result = await getDb()(
+    `UPDATE sessions SET ${sets.join(", ")} WHERE owner_id = $1 AND id = $2 RETURNING id`,
+    params,
+  );
+  return result.length === 0 ? c.json({ error: "Session not found" }, 404) : c.body(null, 204);
+}
 
 async function ownerId(request: Request): Promise<string | Response> {
   const auth = await verifyAuth(request);
@@ -51,7 +90,7 @@ app.doc("/api/doc", {
   info: { title: "Acolyte Cloud API", version: "1.0.0", description: "Authenticated memory and session storage." },
 });
 
-app.get("/api/reference", apiReference({ url: "/doc", pageTitle: "Acolyte Cloud API reference" }));
+app.get("/api/reference", apiReference({ cdn: scalarCdn, url: "/doc", pageTitle: "Acolyte Cloud API reference" }));
 app.openapi(
   createRoute({
     method: "get",
@@ -138,25 +177,6 @@ app.openapi(
     return c.body(null, 204);
   },
 );
-
-app.openAPIRegistry.registerPath({
-  method: "post",
-  path: "/api/v1/memories",
-  tags: tags.memories,
-  security: bearerSecurity,
-  request: {
-    body: {
-      content: { "application/json": { schema: writeMemorySchema } },
-      description: "A memory record to create or update.",
-      required: true,
-    },
-  },
-  responses: {
-    204: { description: "No content" },
-    400: { description: "Invalid request" },
-    401: { description: "Unauthorized" },
-  },
-});
 
 app.openapi(
   createRoute({
@@ -517,48 +537,15 @@ app.openapi(
 app.openapi(
   createRoute({
     method: "patch",
-    path: "/api/v1/sessions/{id}",
+    path: "/api/v1/sessions/{id}/append",
     tags: tags.sessions,
     security: bearerSecurity,
     responses: { ...noContent, 404: { description: "Session not found" } },
   }),
-  async (c) => {
-    const owner = await ownerId(c.req.raw);
-    if (isResponse(owner)) return owner;
-    const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
-    const parsed = appendSessionSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
-    const { messages, tokenUsage, updatedAt, model, title, workspace, workspaceName, workspaceBranch } = parsed.data;
-    const sets = ["updated_at = $3"];
-    const params: unknown[] = [owner, c.req.param("id"), updatedAt];
-    if (messages) {
-      sets.push(`messages = messages || $${params.length + 1}::jsonb`);
-      params.push(JSON.stringify(messages));
-    }
-    if (tokenUsage) {
-      sets.push(`token_usage = token_usage || $${params.length + 1}::jsonb`);
-      params.push(JSON.stringify(tokenUsage));
-    }
-    for (const [column, value] of [
-      ["model", model],
-      ["title", title],
-      ["workspace", workspace],
-      ["workspace_name", workspaceName],
-      ["workspace_branch", workspaceBranch],
-    ] as const) {
-      if (value !== undefined) {
-        sets.push(`${column} = $${params.length + 1}`);
-        params.push(value);
-      }
-    }
-    const result = await getDb()(
-      `UPDATE sessions SET ${sets.join(", ")} WHERE owner_id = $1 AND id = $2 RETURNING id`,
-      params,
-    );
-    return result.length === 0 ? c.json({ error: "Session not found" }, 404) : c.body(null, 204);
-  },
+  appendSession,
 );
+
+app.patch("/api/v1/sessions/{id}", appendSession);
 
 app.openapi(
   createRoute({
@@ -602,15 +589,35 @@ app.openapi(
 
 app.all("/api/v1/*", (c) => c.json({ error: "Method not allowed" }, 405));
 
-for (const [path, schema, description] of [
-  ["/api/v1/memories", writeMemorySchema, "A memory record to create or update."],
-  ["/api/v1/memories/retire", retireMemoriesSchema, "Memory ids and their retirement disposition."],
-  ["/api/v1/memories/restore", restoreMemoriesSchema, "Archived memory ids to restore."],
+for (const [method, path, schema, description, routeTags] of [
+  ["post", "/api/v1/memories", writeMemorySchema, "A memory record to create or update.", tags.memories],
+  ["post", "/api/v1/memories/touch-recalled", touchRecalledSchema, "Memory ids to mark recalled.", tags.memories],
+  [
+    "post",
+    "/api/v1/memories/retire",
+    retireMemoriesSchema,
+    "Memory ids and their retirement disposition.",
+    tags.memories,
+  ],
+  ["post", "/api/v1/memories/restore", restoreMemoriesSchema, "Archived memory ids to restore.", tags.memories],
+  ["post", "/api/v1/memories/embeddings", writeEmbeddingSchema, "An embedding to write.", tags.embeddings],
+  ["post", "/api/v1/memories/embeddings/get", getEmbeddingsSchema, "Embedding ids to retrieve.", tags.embeddings],
+  [
+    "post",
+    "/api/v1/memories/embeddings/search",
+    searchEmbeddingsSchema,
+    "An embedding similarity query.",
+    tags.embeddings,
+  ],
+  ["post", "/api/v1/sessions", saveSessionSchema, "A session to create or update.", tags.sessions],
+  ["put", "/api/v1/sessions/active", setActiveSessionSchema, "The active session id.", tags.sessions],
+  ["patch", "/api/v1/sessions/{id}/append", appendSessionSchema, "An incremental session update.", tags.sessions],
+  ["post", "/api/v1/sessions/{id}/search", searchSessionSchema, "A session message query.", tags.sessions],
 ] as const) {
   app.openAPIRegistry.registerPath({
-    method: "post",
+    method,
     path,
-    tags: tags.memories,
+    tags: routeTags,
     security: bearerSecurity,
     request: { body: { content: { "application/json": { schema } }, description, required: true } },
     responses: {
@@ -622,3 +629,4 @@ for (const [path, schema, description] of [
 }
 
 export { app };
+export default app;

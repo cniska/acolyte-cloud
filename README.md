@@ -78,6 +78,7 @@ acolyte login --url "$ACOLYTE_CLOUD_URL" --token "$ACOLYTE_CLOUD_TOKEN"
 | `pnpm migrate` | Run database migrations |
 | `pnpm sign-token <user-id>` | Generate a signed JWT |
 | `pnpm verify` | Build the contract, typecheck, and test |
+| `pnpm deploy:preview` | Verify, build, and deploy a linked Vercel preview |
 | `pnpm release:contract <major\|minor\|patch>` | Version and tag the shared contract after the `ship` gate |
 
 ## API

@@ -30,12 +30,34 @@ describe("public API", () => {
     expect(document.paths["/api/v1/memories"].post.requestBody.content["application/json"].schema).toBeDefined();
   });
 
+  test("documents every JSON write request", async () => {
+    const document = await (await app.request("https://cloud.example/api/doc")).json();
+    const requests = [
+      ["/api/v1/memories", "post"],
+      ["/api/v1/memories/touch-recalled", "post"],
+      ["/api/v1/memories/retire", "post"],
+      ["/api/v1/memories/restore", "post"],
+      ["/api/v1/memories/embeddings", "post"],
+      ["/api/v1/memories/embeddings/get", "post"],
+      ["/api/v1/memories/embeddings/search", "post"],
+      ["/api/v1/sessions", "post"],
+      ["/api/v1/sessions/active", "put"],
+      ["/api/v1/sessions/{id}/append", "patch"],
+      ["/api/v1/sessions/{id}/search", "post"],
+    ] as const;
+
+    for (const [path, method] of requests)
+      expect(document.paths[path][method].requestBody.content["application/json"].schema).toBeDefined();
+  });
+
   test("serves Scalar API reference", async () => {
     const response = await app.request("https://cloud.example/api/reference");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/html");
-    expect(await response.text()).toContain("Acolyte Cloud API reference");
+    const html = await response.text();
+    expect(html).toContain("Acolyte Cloud API reference");
+    expect(html).toContain("@scalar/api-reference@1.63.0");
   });
 
   test("writes a gzip JSON memory request with the existing response", async () => {

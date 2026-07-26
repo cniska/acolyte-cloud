@@ -12,6 +12,7 @@
     "sign-token": "tsx scripts/sign-token.ts",
     "test": "vitest run",
     "verify": "pnpm build:contract && pnpm typecheck && pnpm test",
+    "deploy:preview": "pnpm verify && pnpm exec vercel build && pnpm exec vercel deploy --prebuilt --yes",
     "release:contract": "tsx scripts/release-contract.ts"
   },
   "dependencies": {
@@ -27,6 +28,7 @@
     "@types/node": "^22.15.2",
     "tsx": "^4.19.4",
     "typescript": "^5.9.3",
+    "vercel": "57.0.0",
     "vitest": "^4.1.3"
   }
 }
