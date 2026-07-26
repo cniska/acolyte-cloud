@@ -7,7 +7,7 @@ import {
   touchRecalledSchema,
   writeEmbeddingSchema,
   writeMemorySchema,
-} from "./schemas.js";
+} from "@acolyte/cloud-contract";
 
 describe("writeMemorySchema", () => {
   const valid = {
@@ -94,7 +94,10 @@ describe("searchEmbeddingsSchema", () => {
   });
 
   test("accepts with optional filters", () => {
-    expect(searchEmbeddingsSchema.safeParse({ queryEmbedding: "AAAA", scopeKey: "user_1", kind: "observation", limit: 5 }).success).toBe(true);
+    expect(
+      searchEmbeddingsSchema.safeParse({ queryEmbedding: "AAAA", scopeKey: "user_1", kind: "observation", limit: 5 })
+        .success,
+    ).toBe(true);
   });
 
   test("rejects limit over 100", () => {
@@ -126,7 +129,10 @@ describe("saveSessionSchema", () => {
   });
 
   test("accepts with optional workspace fields", () => {
-    expect(saveSessionSchema.safeParse({ ...valid, workspace: "/code", workspaceName: "app", workspaceBranch: "main" }).success).toBe(true);
+    expect(
+      saveSessionSchema.safeParse({ ...valid, workspace: "/code", workspaceName: "app", workspaceBranch: "main" })
+        .success,
+    ).toBe(true);
   });
 
   test("rejects missing model", () => {

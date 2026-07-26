@@ -1,7 +1,7 @@
 import { verifyAuth } from "../../../../src/auth.js";
 import { getDb } from "../../../../src/db.js";
 import { parseJson, vectorToBase64 } from "../../../../src/parse.js";
-import { getEmbeddingsSchema } from "../../../../src/schemas.js";
+import { getEmbeddingsSchema } from "@acolyte/cloud-contract";
 
 export const config = { runtime: "edge" };
 

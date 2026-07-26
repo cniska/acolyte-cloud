@@ -5,14 +5,16 @@
   "private": true,
   "packageManager": "pnpm@10.30.3",
   "scripts": {
+    "build:contract": "pnpm --filter @acolyte/cloud-contract build",
     "typecheck": "tsc --noEmit",
     "setup": "tsx scripts/setup.ts",
     "migrate": "tsx scripts/migrate.ts",
     "sign-token": "tsx scripts/sign-token.ts",
     "test": "vitest run",
-    "verify": "pnpm typecheck && pnpm test"
+    "verify": "pnpm build:contract && pnpm typecheck && pnpm test"
   },
   "dependencies": {
+    "@acolyte/cloud-contract": "workspace:*",
     "@neondatabase/serverless": "^0.10.4",
     "jose": "^6.0.8",
     "zod": "^4.3.6"

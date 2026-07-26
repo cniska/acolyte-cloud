@@ -1,7 +1,7 @@
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
 import { parseJson } from "../../../src/parse.js";
-import { setActiveSessionSchema } from "../../../src/schemas.js";
+import { setActiveSessionSchema } from "@acolyte/cloud-contract";
 
 export const config = { runtime: "edge" };
 
@@ -12,10 +12,7 @@ export default async function handler(req: Request) {
   const sql = getDb();
 
   if (req.method === "GET") {
-    const rows = await sql(
-      "SELECT session_id FROM active_sessions WHERE owner_id = $1",
-      [auth.ownerId],
-    );
+    const rows = await sql("SELECT session_id FROM active_sessions WHERE owner_id = $1", [auth.ownerId]);
     return Response.json({ id: (rows[0]?.session_id as string) ?? null });
   }
 

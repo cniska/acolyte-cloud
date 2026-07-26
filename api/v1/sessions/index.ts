@@ -2,7 +2,7 @@ import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
 import { stripNulls } from "../../../src/json.js";
 import { parseJson } from "../../../src/parse.js";
-import { saveSessionSchema } from "../../../src/schemas.js";
+import { saveSessionSchema } from "@acolyte/cloud-contract";
 
 export const config = { runtime: "edge" };
 
@@ -40,7 +40,19 @@ export default async function handler(req: Request) {
          workspace = EXCLUDED.workspace, workspace_name = EXCLUDED.workspace_name,
          workspace_branch = EXCLUDED.workspace_branch, messages = EXCLUDED.messages,
          token_usage = EXCLUDED.token_usage`,
-      [session.id, ownerId, session.createdAt, session.updatedAt, session.model, session.title, session.workspace ?? null, session.workspaceName ?? null, session.workspaceBranch ?? null, JSON.stringify(session.messages), JSON.stringify(session.tokenUsage)],
+      [
+        session.id,
+        ownerId,
+        session.createdAt,
+        session.updatedAt,
+        session.model,
+        session.title,
+        session.workspace ?? null,
+        session.workspaceName ?? null,
+        session.workspaceBranch ?? null,
+        JSON.stringify(session.messages),
+        JSON.stringify(session.tokenUsage),
+      ],
     );
     return new Response(null, { status: 204 });
   }

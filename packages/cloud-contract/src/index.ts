@@ -69,3 +69,14 @@ export const searchSessionSchema = z.object({
 export const setActiveSessionSchema = z.object({
   id: z.string().nullable(),
 });
+
+export type MemoryRecord = z.infer<typeof memoryRecordSchema>;
+export type WriteMemory = z.infer<typeof writeMemorySchema>;
+export type TouchRecalled = z.infer<typeof touchRecalledSchema>;
+export type WriteEmbedding = z.infer<typeof writeEmbeddingSchema>;
+export type GetEmbeddings = z.infer<typeof getEmbeddingsSchema>;
+export type SearchEmbeddings = z.infer<typeof searchEmbeddingsSchema>;
+export type SaveSession = z.infer<typeof saveSessionSchema>;
+export type AppendSession = z.infer<typeof appendSessionSchema>;
+export type SearchSession = z.infer<typeof searchSessionSchema>;
+export type SetActiveSession = z.infer<typeof setActiveSessionSchema>;

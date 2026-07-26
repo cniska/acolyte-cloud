@@ -1,7 +1,7 @@
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
 import { parseJson } from "../../../src/parse.js";
-import { writeMemorySchema } from "../../../src/schemas.js";
+import { writeMemorySchema } from "@acolyte/cloud-contract";
 
 export const config = { runtime: "edge" };
 
@@ -54,7 +54,17 @@ export default async function handler(req: Request) {
          scope_key = EXCLUDED.scope_key, kind = EXCLUDED.kind, content = EXCLUDED.content,
          token_estimate = EXCLUDED.token_estimate, last_recalled_at = EXCLUDED.last_recalled_at,
          topic = EXCLUDED.topic`,
-      [record.id, ownerId, record.scopeKey, record.kind, record.content, record.tokenEstimate, record.createdAt, record.lastRecalledAt ?? null, record.topic ?? null],
+      [
+        record.id,
+        ownerId,
+        record.scopeKey,
+        record.kind,
+        record.content,
+        record.tokenEstimate,
+        record.createdAt,
+        record.lastRecalledAt ?? null,
+        record.topic ?? null,
+      ],
     );
     return new Response(null, { status: 204 });
   }

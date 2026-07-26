@@ -1,7 +1,7 @@
 import { verifyAuth } from "../../../src/auth.js";
 import { getDb } from "../../../src/db.js";
 import { parseJson } from "../../../src/parse.js";
-import { touchRecalledSchema } from "../../../src/schemas.js";
+import { touchRecalledSchema } from "@acolyte/cloud-contract";
 
 export const config = { runtime: "edge" };
 
@@ -19,9 +19,9 @@ export default async function handler(req: Request) {
 
   const sql = getDb();
   const placeholders = ids.map((_: string, i: number) => `$${i + 2}`).join(", ");
-  await sql(
-    `UPDATE memories SET last_recalled_at = now() WHERE owner_id = $1 AND id IN (${placeholders})`,
-    [auth.ownerId, ...ids],
-  );
+  await sql(`UPDATE memories SET last_recalled_at = now() WHERE owner_id = $1 AND id IN (${placeholders})`, [
+    auth.ownerId,
+    ...ids,
+  ]);
   return new Response(null, { status: 204 });
 }

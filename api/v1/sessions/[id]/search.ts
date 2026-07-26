@@ -1,7 +1,7 @@
 import { verifyAuth } from "../../../../src/auth.js";
 import { getDb } from "../../../../src/db.js";
 import { extractParentId, parseJson } from "../../../../src/parse.js";
-import { searchSessionSchema } from "../../../../src/schemas.js";
+import { searchSessionSchema } from "@acolyte/cloud-contract";
 
 export const config = { runtime: "edge" };
 
