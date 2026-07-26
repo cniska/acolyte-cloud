@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Wire contracts for Acolyte Cloud",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cniska/acolyte-cloud.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cniska/acolyte-cloud/issues"
+  },
+  "homepage": "https://github.com/cniska/acolyte-cloud#readme",
   "type": "module",
   "files": [
     "dist"
