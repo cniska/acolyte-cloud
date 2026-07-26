@@ -27,6 +27,7 @@ describe("public API", () => {
     const document = await response.json();
     expect(document).toMatchObject({ openapi: "3.0.3", info: { title: "Acolyte Cloud API" } });
     expect(document.paths).toHaveProperty("/api/v1/memories");
+    expect(document.paths["/api/v1/memories"].post.requestBody.content["application/json"].schema).toBeDefined();
   });
 
   test("serves Scalar API reference", async () => {

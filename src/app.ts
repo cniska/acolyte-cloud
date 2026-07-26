@@ -139,6 +139,25 @@ app.openapi(
   },
 );
 
+app.openAPIRegistry.registerPath({
+  method: "post",
+  path: "/api/v1/memories",
+  tags: tags.memories,
+  security: bearerSecurity,
+  request: {
+    body: {
+      content: { "application/json": { schema: writeMemorySchema } },
+      description: "A memory record to create or update.",
+      required: true,
+    },
+  },
+  responses: {
+    204: { description: "No content" },
+    400: { description: "Invalid request" },
+    401: { description: "Unauthorized" },
+  },
+});
+
 app.openapi(
   createRoute({
     method: "delete",
@@ -582,5 +601,24 @@ app.openapi(
 );
 
 app.all("/api/v1/*", (c) => c.json({ error: "Method not allowed" }, 405));
+
+for (const [path, schema, description] of [
+  ["/api/v1/memories", writeMemorySchema, "A memory record to create or update."],
+  ["/api/v1/memories/retire", retireMemoriesSchema, "Memory ids and their retirement disposition."],
+  ["/api/v1/memories/restore", restoreMemoriesSchema, "Archived memory ids to restore."],
+] as const) {
+  app.openAPIRegistry.registerPath({
+    method: "post",
+    path,
+    tags: tags.memories,
+    security: bearerSecurity,
+    request: { body: { content: { "application/json": { schema } }, description, required: true } },
+    responses: {
+      200: { description: "Success" },
+      204: { description: "No content" },
+      400: { description: "Invalid request" },
+    },
+  });
+}
 
 export { app };
