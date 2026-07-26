@@ -23,6 +23,20 @@ describe("parseJson", () => {
     const req = new Request("https://example.com", { method: "POST" });
     expect(await parseJson(req)).toBeNull();
   });
+
+  test("rejects a gzip body that expands beyond the JSON limit", async () => {
+    const compressed = new Blob([JSON.stringify({ content: "x".repeat(4_500_000) })])
+      .stream()
+      .pipeThrough(new CompressionStream("gzip"));
+    const req = new Request("https://example.com", {
+      method: "POST",
+      body: compressed,
+      duplex: "half",
+      headers: { "content-encoding": "gzip", "content-type": "application/json" },
+    } as RequestInit & { duplex: "half" });
+
+    expect(await parseJson(req)).toBeNull();
+  });
 });
 
 describe("base64ToVector", () => {

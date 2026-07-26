@@ -1,12 +1,42 @@
+const MAX_JSON_BYTES = 4_500_000;
+
+async function readBody(stream: ReadableStream<Uint8Array>): Promise<string | null> {
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let length = 0;
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      length += value.byteLength;
+      if (length > MAX_JSON_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(body);
+}
+
 export async function parseJson(req: Request): Promise<unknown | null> {
   try {
     const encoding = req.headers.get("content-encoding");
-    if (encoding === "gzip" && req.body) {
-      const decompressed = req.body.pipeThrough(new DecompressionStream("gzip"));
-      const text = await new Response(decompressed).text();
-      return JSON.parse(text);
-    }
-    return await req.json();
+    const contentLength = Number(req.headers.get("content-length"));
+    if (contentLength > MAX_JSON_BYTES || !req.body) return null;
+    const stream = encoding === "gzip" ? req.body.pipeThrough(new DecompressionStream("gzip")) : req.body;
+    const text = await readBody(stream);
+    return text === null ? null : JSON.parse(text);
   } catch {
     return null;
   }
