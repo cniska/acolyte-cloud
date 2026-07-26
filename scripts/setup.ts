@@ -55,5 +55,7 @@ execSync(`DATABASE_URL="${databaseUrl}" pnpm migrate`, { cwd: root, stdio: "inhe
 
 console.log("\nDone! Next steps:");
 console.log("  1. vercel link");
-console.log("  2. cat public.pem | vercel env add JWT_PUBLIC_KEY production");
-console.log("  3. vercel deploy --prod");
+console.log("  2. vercel env add DATABASE_URL production");
+console.log("  3. vercel env add JWT_PUBLIC_KEY production < public.pem");
+console.log("  4. vercel deploy --prod");
+console.log("  5. pnpm sign-token <user-id>");
