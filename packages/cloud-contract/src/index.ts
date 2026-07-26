@@ -20,6 +20,32 @@ export const touchRecalledSchema = z.object({
   ids: z.array(z.string().min(1)).min(1),
 });
 
+export const memoryDispositionSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("superseded"), by: z.array(z.string().min(1)).min(1) }),
+  z.object({ kind: z.literal("capacity") }),
+  z.object({ kind: z.literal("noise") }),
+]);
+
+export const retireMemoriesSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+  disposition: memoryDispositionSchema,
+});
+
+export const restoreMemoriesSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1),
+});
+
+export const listArchiveMemoriesSchema = z.object({
+  scopeKey: z.string().min(1).optional(),
+  kind: z.enum(["observation", "stored"]).optional(),
+  disposition: z.enum(["superseded", "capacity", "noise"]).optional(),
+});
+
+export const memoryArchiveRecordSchema = memoryRecordSchema.extend({
+  retiredAt: z.string().min(1),
+  disposition: memoryDispositionSchema,
+});
+
 export const writeEmbeddingSchema = z.object({
   id: z.string().min(1),
   scopeKey: z.string().min(1),
@@ -73,6 +99,11 @@ export const setActiveSessionSchema = z.object({
 export type MemoryRecord = z.infer<typeof memoryRecordSchema>;
 export type WriteMemory = z.infer<typeof writeMemorySchema>;
 export type TouchRecalled = z.infer<typeof touchRecalledSchema>;
+export type MemoryDisposition = z.infer<typeof memoryDispositionSchema>;
+export type RetireMemories = z.infer<typeof retireMemoriesSchema>;
+export type RestoreMemories = z.infer<typeof restoreMemoriesSchema>;
+export type ListArchiveMemories = z.infer<typeof listArchiveMemoriesSchema>;
+export type MemoryArchiveRecord = z.infer<typeof memoryArchiveRecordSchema>;
 export type WriteEmbedding = z.infer<typeof writeEmbeddingSchema>;
 export type GetEmbeddings = z.infer<typeof getEmbeddingsSchema>;
 export type SearchEmbeddings = z.infer<typeof searchEmbeddingsSchema>;

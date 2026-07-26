@@ -1,10 +1,14 @@
 import { describe, expect, test } from "vitest";
 import {
   getEmbeddingsSchema,
+  listArchiveMemoriesSchema,
+  memoryArchiveRecordSchema,
   saveSessionSchema,
   searchEmbeddingsSchema,
   setActiveSessionSchema,
   touchRecalledSchema,
+  retireMemoriesSchema,
+  restoreMemoriesSchema,
   writeEmbeddingSchema,
   writeMemorySchema,
 } from "@acolyte/cloud-contract";
@@ -61,6 +65,45 @@ describe("touchRecalledSchema", () => {
 
   test("rejects empty string in ids", () => {
     expect(touchRecalledSchema.safeParse({ ids: [""] }).success).toBe(false);
+  });
+});
+
+describe("archive schemas", () => {
+  test("accepts a supersession with successors", () => {
+    expect(
+      retireMemoriesSchema.safeParse({ ids: ["mem_old"], disposition: { kind: "superseded", by: ["mem_new"] } })
+        .success,
+    ).toBe(true);
+  });
+
+  test("rejects a supersession without successors", () => {
+    expect(
+      retireMemoriesSchema.safeParse({ ids: ["mem_old"], disposition: { kind: "superseded", by: [] } }).success,
+    ).toBe(false);
+  });
+
+  test("accepts restore ids", () => {
+    expect(restoreMemoriesSchema.safeParse({ ids: ["mem_old"] }).success).toBe(true);
+  });
+
+  test("accepts archive filters and records", () => {
+    expect(listArchiveMemoriesSchema.safeParse({ scopeKey: "user:1", disposition: "capacity" }).success).toBe(true);
+    expect(
+      memoryArchiveRecordSchema.safeParse({
+        id: "mem_old",
+        scopeKey: "user:1",
+        kind: "stored",
+        content: "old fact",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        tokenEstimate: 2,
+        retiredAt: "2026-01-02T00:00:00.000Z",
+        disposition: { kind: "noise" },
+      }).success,
+    ).toBe(true);
+  });
+
+  test("rejects invalid archive filters", () => {
+    expect(listArchiveMemoriesSchema.safeParse({ disposition: "unknown" }).success).toBe(false);
   });
 });
 
