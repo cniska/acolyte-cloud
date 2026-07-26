@@ -2,7 +2,7 @@
 
 Bring-your-own server for Acolyte users who want to run their own authenticated memory, embeddings, and session storage.
 
-Hono OpenAPI Edge application fronting Neon Postgres with pgvector for memory embeddings and session storage.
+Hono OpenAPI serverless application fronting Neon Postgres with pgvector for memory embeddings and session storage.
 
 ## Prerequisites
 
@@ -83,7 +83,7 @@ acolyte login --url "$ACOLYTE_CLOUD_URL" --token "$ACOLYTE_CLOUD_TOKEN"
 
 ## API
 
-All endpoints require `Authorization: Bearer <token>` (EdDSA JWT).
+All `/api/v1` endpoints require `Authorization: Bearer <token>` (EdDSA JWT).
 
 The machine-readable OpenAPI 3.0.3 document is served at `/doc`; the interactive Scalar reference is at `/reference`.
 
@@ -103,7 +103,7 @@ The machine-readable OpenAPI 3.0.3 document is served at `/doc`; the interactive
 | Sessions | GET | `/api/v1/sessions` | List sessions |
 | | POST | `/api/v1/sessions` | Save session |
 | | GET | `/api/v1/sessions/:id` | Get session |
-| | PATCH | `/api/v1/sessions/:id` | Append session updates |
+| | PATCH | `/api/v1/sessions/:id/append` | Append session updates |
 | | DELETE | `/api/v1/sessions/:id` | Delete session |
 | | POST | `/api/v1/sessions/:id/search` | Search session messages |
 | | GET | `/api/v1/sessions/active` | Get active session |

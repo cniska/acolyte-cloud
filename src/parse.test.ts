@@ -25,7 +25,7 @@ describe("parseJson", () => {
   });
 
   test("rejects a gzip body that expands beyond the JSON limit", async () => {
-    const compressed = new Blob([JSON.stringify({ content: "x".repeat(1_000_000) })])
+    const compressed = new Blob([JSON.stringify({ content: "x".repeat(4_500_000) })])
       .stream()
       .pipeThrough(new CompressionStream("gzip"));
     const req = new Request("https://example.com", {

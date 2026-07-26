@@ -1,4 +1,4 @@
-const MAX_JSON_BYTES = 1_000_000;
+const MAX_JSON_BYTES = 4_500_000;
 
 async function readBody(stream: ReadableStream<Uint8Array>): Promise<string | null> {
   const reader = stream.getReader();

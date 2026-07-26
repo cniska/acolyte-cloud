@@ -28,6 +28,15 @@ describe("public API", () => {
     expect(document).toMatchObject({ openapi: "3.0.3", info: { title: "Acolyte Cloud API" } });
     expect(document.paths).toHaveProperty("/api/v1/memories");
     expect(document.paths["/api/v1/memories"].post.requestBody.content["application/json"].schema).toBeDefined();
+    expect(document.paths["/api/v1/memories"].post.responses).not.toHaveProperty("200");
+    expect(document.paths["/api/v1/sessions/{id}/append"].patch.parameters).toMatchObject([
+      { in: "path", name: "id", required: true },
+    ]);
+    expect(document.paths["/api/v1/memories"].get.parameters).toMatchObject([
+      { in: "query", name: "scopeKey" },
+      { in: "query", name: "kind" },
+    ]);
+    expect(document.paths["/api/v1/sessions"].get.parameters).toMatchObject([{ in: "query", name: "limit" }]);
   });
 
   test("documents every JSON write request", async () => {
@@ -47,7 +56,10 @@ describe("public API", () => {
     ] as const;
 
     for (const [path, method] of requests)
-      expect(document.paths[path][method].requestBody.content["application/json"].schema).toBeDefined();
+      expect(document.paths[path][method]).toMatchObject({
+        requestBody: { content: { "application/json": { schema: expect.anything() } } },
+        responses: { 401: { description: "Unauthorized" } },
+      });
   });
 
   test("serves Scalar API reference", async () => {
@@ -100,6 +112,14 @@ describe("public API", () => {
 
     expect(response.status).toBe(401);
     expect(await response.text()).toBe("Unauthorized");
+  });
+
+  test("authenticates unsupported API methods", async () => {
+    mocks.verifyAuth.mockResolvedValue({ ok: false, error: new Response("Unauthorized", { status: 401 }) });
+
+    const response = await app.request("https://cloud.example/api/v1/sessions", { method: "DELETE" });
+
+    expect(response.status).toBe(401);
   });
 
   test("retires owner memories and embeddings atomically", async () => {

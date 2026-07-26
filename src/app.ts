@@ -28,10 +28,21 @@ const tags = {
 };
 const bearerSecurity = [{ bearerAuth: [] }];
 const noContent = { 204: { description: "No content" } };
+const unauthorized = { 401: { description: "Unauthorized" } };
+const invalidRequest = { 400: { description: "Invalid request" }, ...unauthorized };
+const noContentResponses = { ...noContent, ...invalidRequest };
+const successResponses = { 200: { description: "Success" }, ...invalidRequest };
+const appendResponses = { ...noContentResponses, 404: { description: "Session not found" } };
 const scalarCdn = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.63.0";
 const validMemoryKinds = new Set(["observation", "stored"]);
 const errorResponse = (error: string) => Response.json({ error }, { status: 400 });
 const healthResponseSchema = z.object({ status: z.literal("ok") }).openapi("HealthResponse");
+const idParams = z.object({ id: z.string().min(1) });
+const memoryListQuery = z.object({
+  scopeKey: z.string().optional(),
+  kind: z.enum(["observation", "stored"]).optional(),
+});
+const sessionListQuery = z.object({ limit: z.coerce.number().int().positive().optional() });
 
 async function appendSession(c: Context) {
   const owner = await ownerId(c.req.raw);
@@ -184,7 +195,8 @@ app.openapi(
     path: "/api/v1/memories/{id}",
     tags: tags.memories,
     security: bearerSecurity,
-    responses: noContent,
+    request: { params: idParams },
+    responses: { ...noContent, ...unauthorized },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -200,7 +212,7 @@ app.openapi(
     path: "/api/v1/memories/touch-recalled",
     tags: tags.memories,
     security: bearerSecurity,
-    responses: noContent,
+    responses: noContentResponses,
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -224,7 +236,7 @@ app.openapi(
     path: "/api/v1/memories/retire",
     tags: tags.memories,
     security: bearerSecurity,
-    responses: { 200: { description: "Retired memory IDs" } },
+    responses: successResponses,
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -249,7 +261,7 @@ app.openapi(
     path: "/api/v1/memories/archive",
     tags: tags.memories,
     security: bearerSecurity,
-    responses: { 200: { description: "Archived memories" } },
+    responses: { 200: { description: "Archived memories" }, ...invalidRequest },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -284,7 +296,7 @@ app.openapi(
     path: "/api/v1/memories/restore",
     tags: tags.memories,
     security: bearerSecurity,
-    responses: { 200: { description: "Restored memories" } },
+    responses: successResponses,
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -308,7 +320,7 @@ app.openapi(
     path: "/api/v1/memories/embeddings",
     tags: tags.embeddings,
     security: bearerSecurity,
-    responses: noContent,
+    responses: noContentResponses,
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -334,7 +346,8 @@ app.openapi(
     path: "/api/v1/memories/embeddings/{id}",
     tags: tags.embeddings,
     security: bearerSecurity,
-    responses: noContent,
+    request: { params: idParams },
+    responses: { ...noContent, ...unauthorized },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -350,7 +363,7 @@ app.openapi(
     path: "/api/v1/memories/embeddings/get",
     tags: tags.embeddings,
     security: bearerSecurity,
-    responses: { 200: { description: "Embeddings" } },
+    responses: { 200: { description: "Embeddings" }, ...invalidRequest },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -377,7 +390,7 @@ app.openapi(
     path: "/api/v1/memories/embeddings/search",
     tags: tags.embeddings,
     security: bearerSecurity,
-    responses: { 200: { description: "Matching memories" } },
+    responses: { 200: { description: "Matching memories" }, ...invalidRequest },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -418,7 +431,7 @@ app.openapi(
     path: "/api/v1/sessions",
     tags: tags.sessions,
     security: bearerSecurity,
-    responses: { 200: { description: "Sessions" } },
+    responses: { 200: { description: "Sessions" }, ...unauthorized },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -440,7 +453,7 @@ app.openapi(
     path: "/api/v1/sessions",
     tags: tags.sessions,
     security: bearerSecurity,
-    responses: noContent,
+    responses: noContentResponses,
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -479,7 +492,7 @@ app.openapi(
     path: "/api/v1/sessions/active",
     tags: tags.sessions,
     security: bearerSecurity,
-    responses: { 200: { description: "Active session" } },
+    responses: { 200: { description: "Active session" }, ...unauthorized },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -495,7 +508,7 @@ app.openapi(
     path: "/api/v1/sessions/active",
     tags: tags.sessions,
     security: bearerSecurity,
-    responses: noContent,
+    responses: noContentResponses,
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -519,7 +532,8 @@ app.openapi(
     path: "/api/v1/sessions/{id}",
     tags: tags.sessions,
     security: bearerSecurity,
-    responses: { 200: { description: "Session or null" } },
+    request: { params: idParams },
+    responses: { 200: { description: "Session or null" }, ...unauthorized },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -540,12 +554,11 @@ app.openapi(
     path: "/api/v1/sessions/{id}/append",
     tags: tags.sessions,
     security: bearerSecurity,
-    responses: { ...noContent, 404: { description: "Session not found" } },
+    request: { params: idParams },
+    responses: appendResponses,
   }),
   appendSession,
 );
-
-app.patch("/api/v1/sessions/{id}", appendSession);
 
 app.openapi(
   createRoute({
@@ -553,7 +566,8 @@ app.openapi(
     path: "/api/v1/sessions/{id}",
     tags: tags.sessions,
     security: bearerSecurity,
-    responses: noContent,
+    request: { params: idParams },
+    responses: { ...noContent, ...unauthorized },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -569,7 +583,8 @@ app.openapi(
     path: "/api/v1/sessions/{id}/search",
     tags: tags.sessions,
     security: bearerSecurity,
-    responses: { 200: { description: "Matching messages" } },
+    request: { params: idParams },
+    responses: { 200: { description: "Matching messages" }, ...invalidRequest },
   }),
   async (c) => {
     const owner = await ownerId(c.req.raw);
@@ -587,44 +602,131 @@ app.openapi(
   },
 );
 
-app.all("/api/v1/*", (c) => c.json({ error: "Method not allowed" }, 405));
+app.all("/api/v1/*", async (c) => {
+  const owner = await ownerId(c.req.raw);
+  return isResponse(owner) ? owner : c.json({ error: "Method not allowed" }, 405);
+});
 
-for (const [method, path, schema, description, routeTags] of [
-  ["post", "/api/v1/memories", writeMemorySchema, "A memory record to create or update.", tags.memories],
-  ["post", "/api/v1/memories/touch-recalled", touchRecalledSchema, "Memory ids to mark recalled.", tags.memories],
+for (const [method, path, schema, description, routeTags, responses, params] of [
+  [
+    "post",
+    "/api/v1/memories",
+    writeMemorySchema,
+    "A memory record to create or update.",
+    tags.memories,
+    noContentResponses,
+  ],
+  [
+    "post",
+    "/api/v1/memories/touch-recalled",
+    touchRecalledSchema,
+    "Memory ids to mark recalled.",
+    tags.memories,
+    noContentResponses,
+  ],
   [
     "post",
     "/api/v1/memories/retire",
     retireMemoriesSchema,
     "Memory ids and their retirement disposition.",
     tags.memories,
+    successResponses,
   ],
-  ["post", "/api/v1/memories/restore", restoreMemoriesSchema, "Archived memory ids to restore.", tags.memories],
-  ["post", "/api/v1/memories/embeddings", writeEmbeddingSchema, "An embedding to write.", tags.embeddings],
-  ["post", "/api/v1/memories/embeddings/get", getEmbeddingsSchema, "Embedding ids to retrieve.", tags.embeddings],
+  [
+    "post",
+    "/api/v1/memories/restore",
+    restoreMemoriesSchema,
+    "Archived memory ids to restore.",
+    tags.memories,
+    successResponses,
+  ],
+  [
+    "post",
+    "/api/v1/memories/embeddings",
+    writeEmbeddingSchema,
+    "An embedding to write.",
+    tags.embeddings,
+    noContentResponses,
+  ],
+  [
+    "post",
+    "/api/v1/memories/embeddings/get",
+    getEmbeddingsSchema,
+    "Embedding ids to retrieve.",
+    tags.embeddings,
+    successResponses,
+  ],
   [
     "post",
     "/api/v1/memories/embeddings/search",
     searchEmbeddingsSchema,
     "An embedding similarity query.",
     tags.embeddings,
+    successResponses,
   ],
-  ["post", "/api/v1/sessions", saveSessionSchema, "A session to create or update.", tags.sessions],
-  ["put", "/api/v1/sessions/active", setActiveSessionSchema, "The active session id.", tags.sessions],
-  ["patch", "/api/v1/sessions/{id}/append", appendSessionSchema, "An incremental session update.", tags.sessions],
-  ["post", "/api/v1/sessions/{id}/search", searchSessionSchema, "A session message query.", tags.sessions],
+  ["post", "/api/v1/sessions", saveSessionSchema, "A session to create or update.", tags.sessions, noContentResponses],
+  [
+    "put",
+    "/api/v1/sessions/active",
+    setActiveSessionSchema,
+    "The active session id.",
+    tags.sessions,
+    noContentResponses,
+  ],
+  [
+    "patch",
+    "/api/v1/sessions/{id}/append",
+    appendSessionSchema,
+    "An incremental session update.",
+    tags.sessions,
+    appendResponses,
+    idParams,
+  ],
+  [
+    "post",
+    "/api/v1/sessions/{id}/search",
+    searchSessionSchema,
+    "A session message query.",
+    tags.sessions,
+    successResponses,
+    idParams,
+  ],
 ] as const) {
   app.openAPIRegistry.registerPath({
     method,
     path,
     tags: routeTags,
     security: bearerSecurity,
-    request: { body: { content: { "application/json": { schema } }, description, required: true } },
-    responses: {
-      200: { description: "Success" },
-      204: { description: "No content" },
-      400: { description: "Invalid request" },
+    request: {
+      ...(params ? { params } : {}),
+      body: { content: { "application/json": { schema } }, description, required: true },
     },
+    responses,
+  });
+}
+
+for (const [path, query, routeTags, responses] of [
+  [
+    "/api/v1/memories",
+    memoryListQuery,
+    tags.memories,
+    { 200: { description: "Memories" }, 400: { description: "Invalid kind" }, ...unauthorized },
+  ],
+  [
+    "/api/v1/memories/archive",
+    listArchiveMemoriesSchema,
+    tags.memories,
+    { 200: { description: "Archived memories" }, ...invalidRequest },
+  ],
+  ["/api/v1/sessions", sessionListQuery, tags.sessions, { 200: { description: "Sessions" }, ...unauthorized }],
+] as const) {
+  app.openAPIRegistry.registerPath({
+    method: "get",
+    path,
+    tags: routeTags,
+    security: bearerSecurity,
+    request: { query },
+    responses,
   });
 }
 
