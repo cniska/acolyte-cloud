@@ -1,41 +1,62 @@
-import { describe, expect, test } from "vitest";
+import { SignJWT, exportSPKI, generateKeyPair } from "jose";
+import { beforeAll, describe, expect, test } from "vitest";
+import { verifyAuth } from "./auth.js";
 
-// Test deriveOwnerId logic directly since it's not exported.
-// We replicate the logic here to test the branching.
-function deriveOwnerId(payload: { sub?: string; tid?: string; oid?: string; scope?: string }): string | null {
-  switch (payload.scope) {
-    case "team":
-      return payload.tid ?? null;
-    case "org":
-      return payload.oid ?? null;
-    case "user":
-    default:
-      return payload.sub ?? null;
-  }
+let privateKey: CryptoKey;
+
+beforeAll(async () => {
+  const pair = await generateKeyPair("EdDSA");
+  privateKey = pair.privateKey;
+  process.env.JWT_PUBLIC_KEY = await exportSPKI(pair.publicKey);
+});
+
+function request(authorization?: string): Request {
+  return new Request("https://cloud.example", authorization ? { headers: { authorization } } : undefined);
 }
 
-describe("deriveOwnerId", () => {
-  test("user scope returns sub", () => {
-    expect(deriveOwnerId({ sub: "user_1", scope: "user" })).toBe("user_1");
+async function sign(claims: Record<string, unknown>): Promise<string> {
+  return new SignJWT(claims)
+    .setProtectedHeader({ alg: "EdDSA" })
+    .setIssuedAt()
+    .setExpirationTime("30d")
+    .sign(privateKey);
+}
+
+describe("verifyAuth", () => {
+  test("rejects a missing Authorization header", async () => {
+    const result = await verifyAuth(request());
+
+    expect(result).toEqual({ ok: false, error: expect.any(Response) });
+    expect(result.ok || (await result.error.text())).toBe("Unauthorized");
   });
 
-  test("team scope returns tid", () => {
-    expect(deriveOwnerId({ sub: "user_1", tid: "team_1", scope: "team" })).toBe("team_1");
+  test("rejects a header without a Bearer prefix", async () => {
+    const result = await verifyAuth(request("Token abc"));
+
+    expect(result.ok).toBe(false);
   });
 
-  test("org scope returns oid", () => {
-    expect(deriveOwnerId({ sub: "user_1", oid: "org_1", scope: "org" })).toBe("org_1");
+  test("accepts a valid token and derives the owner from sub", async () => {
+    const token = await sign({ sub: "user_1" });
+
+    const result = await verifyAuth(request(`Bearer ${token}`));
+
+    expect(result).toEqual({ ok: true, ownerId: "user_1" });
   });
 
-  test("defaults to sub when scope is missing", () => {
-    expect(deriveOwnerId({ sub: "user_1" })).toBe("user_1");
+  test("rejects a valid token with no sub claim", async () => {
+    const token = await sign({});
+
+    const result = await verifyAuth(request(`Bearer ${token}`));
+
+    expect(result.ok).toBe(false);
+    expect(result.ok || (await result.error.text())).toBe("Invalid token claims");
   });
 
-  test("returns null when team scope has no tid", () => {
-    expect(deriveOwnerId({ sub: "user_1", scope: "team" })).toBeNull();
-  });
+  test("rejects a malformed token", async () => {
+    const result = await verifyAuth(request("Bearer not-a-jwt"));
 
-  test("returns null when no claims at all", () => {
-    expect(deriveOwnerId({})).toBeNull();
+    expect(result.ok).toBe(false);
+    expect(result.ok || (await result.error.text())).toBe("Invalid token");
   });
 });

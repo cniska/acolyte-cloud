@@ -1,26 +1,9 @@
 import { jwtVerify, importSPKI } from "jose";
 
-type AuthResult =
-  | { ok: true; ownerId: string }
-  | { ok: false; error: Response };
+type AuthResult = { ok: true; ownerId: string } | { ok: false; error: Response };
 
 interface JwtPayload {
   sub?: string;
-  tid?: string;
-  oid?: string;
-  scope?: string;
-}
-
-function deriveOwnerId(payload: JwtPayload): string | null {
-  switch (payload.scope) {
-    case "team":
-      return payload.tid ?? null;
-    case "org":
-      return payload.oid ?? null;
-    case "user":
-    default:
-      return payload.sub ?? null;
-  }
 }
 
 let cachedKey: CryptoKey | null = null;
@@ -43,7 +26,7 @@ export async function verifyAuth(req: Request): Promise<AuthResult> {
   try {
     const key = await getVerifyKey();
     const { payload } = await jwtVerify(token, key, { algorithms: ["EdDSA"] });
-    const ownerId = deriveOwnerId(payload as JwtPayload);
+    const ownerId = (payload as JwtPayload).sub ?? null;
     if (!ownerId) {
       return { ok: false, error: new Response("Invalid token claims", { status: 401 }) };
     }

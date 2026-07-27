@@ -47,7 +47,7 @@ TOKEN=$(pnpm sign-token example-user)
 curl -H "Authorization: Bearer $TOKEN" "https://your-deployment.example/api/v1/memories"
 ```
 
-Tokens expire after 30 days. `pnpm sign-token` also supports `--scope team --tid <id>` and `--scope org --oid <id>` for shared ownership scopes.
+Tokens expire after 30 days.
 
 ## Run locally
 
