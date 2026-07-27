@@ -102,6 +102,8 @@ const openApiDoc = {
 };
 const referenceConfig = { cdn: scalarCdn, url: "/doc", pageTitle: "Acolyte Cloud API reference" };
 
+app.get("/", (c) => c.redirect("/index.html"));
+
 app.doc("/api/doc", openApiDoc);
 app.doc("/doc", openApiDoc);
 
