@@ -66,6 +66,53 @@ describe("public API", () => {
       });
   });
 
+  test("documents metadata for discovery and codegen", async () => {
+    const document = await (await app.request("https://cloud.example/api/doc")).json();
+
+    expect(document.servers).toEqual([{ url: "https://cloud.acolyte.sh", description: "Production" }]);
+    expect(document.tags.map((tag: { name: string }) => tag.name)).toEqual([
+      "System",
+      "Memories",
+      "Embeddings",
+      "Sessions",
+    ]);
+    for (const [path, methods] of Object.entries<Record<string, unknown>>(document.paths))
+      for (const [method, operation] of Object.entries(methods as Record<string, { operationId?: string }>))
+        expect(operation.operationId, `${method.toUpperCase()} ${path}`).toBeTruthy();
+  });
+
+  test("documents response bodies for reads that return one", async () => {
+    const document = await (await app.request("https://cloud.example/api/doc")).json();
+    const reads = [
+      ["/api/v1/memories", "get", "MemoryList"],
+      ["/api/v1/memories/archive", "get", "MemoryArchiveList"],
+      ["/api/v1/memories/retire", "post", "RetireResult"],
+      ["/api/v1/memories/restore", "post", "MemoryList"],
+      ["/api/v1/memories/embeddings/get", "post", "EmbeddingsResult"],
+      ["/api/v1/memories/embeddings/search", "post", "MemoryList"],
+      ["/api/v1/sessions", "get", "SessionList"],
+      ["/api/v1/sessions/active", "get", "ActiveSession"],
+      ["/api/v1/sessions/{id}/search", "post", "SessionMessages"],
+    ] as const;
+
+    for (const [path, method, schemaName] of reads)
+      expect(document.paths[path][method].responses["200"].content["application/json"].schema).toEqual({
+        $ref: `#/components/schemas/${schemaName}`,
+      });
+
+    expect(document.paths["/api/v1/sessions/{id}"].get.responses["200"].content["application/json"].schema).toEqual({
+      allOf: [{ $ref: "#/components/schemas/Session" }, { nullable: true }],
+    });
+  });
+
+  test("documents the 401 shape verifyAuth actually returns", async () => {
+    const document = await (await app.request("https://cloud.example/api/doc")).json();
+
+    expect(document.paths["/api/v1/sessions"].get.responses["401"]).toMatchObject({
+      content: { "text/plain": { schema: { type: "string" } } },
+    });
+  });
+
   test("serves Scalar API reference", async () => {
     const response = await app.request("https://cloud.example/api/reference");
 

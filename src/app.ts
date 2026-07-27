@@ -2,6 +2,8 @@ import {
   appendSessionSchema,
   getEmbeddingsSchema,
   listArchiveMemoriesSchema,
+  memoryArchiveRecordSchema,
+  memoryRecordSchema,
   restoreMemoriesSchema,
   retireMemoriesSchema,
   saveSessionSchema,
@@ -27,22 +29,65 @@ const tags = {
   sessions: ["Sessions"],
 };
 const bearerSecurity = [{ bearerAuth: [] }];
+const errorSchema = z.object({ error: z.string() }).openapi("Error", { description: "A request failure and why." });
+// verifyAuth() rejects with a plain-text Response, not JSON: the 401 schema
+// must match that or the doc would describe a body the API never sends.
+const jsonError = (description: string) => ({
+  description,
+  content: { "application/json": { schema: errorSchema } },
+});
+const plainTextError = (description: string) => ({
+  description,
+  content: { "text/plain": { schema: z.string() } },
+});
 const noContent = { 204: { description: "No content" } };
-const unauthorized = { 401: { description: "Unauthorized" } };
-const invalidRequest = { 400: { description: "Invalid request" }, ...unauthorized };
+const unauthorized = { 401: plainTextError("Unauthorized") };
+const invalidRequest = { 400: jsonError("Invalid request"), ...unauthorized };
 const noContentResponses = { ...noContent, ...invalidRequest };
 const successResponses = { 200: { description: "Success" }, ...invalidRequest };
-const appendResponses = { ...noContentResponses, 404: { description: "Session not found" } };
+const appendResponses = { ...noContentResponses, 404: jsonError("Session not found") };
 const scalarCdn = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.63.0";
 const validMemoryKinds = new Set(["observation", "stored"]);
 const errorResponse = (error: string) => Response.json({ error }, { status: 400 });
-const healthResponseSchema = z.object({ status: z.literal("ok") }).openapi("HealthResponse");
+const healthResponseSchema = z
+  .object({ status: z.literal("ok") })
+  .openapi("HealthResponse", { description: "Confirms the API is reachable." });
 const idParams = z.object({ id: z.string().min(1) });
 const memoryListQuery = z.object({
   scopeKey: z.string().optional(),
   kind: z.enum(["observation", "stored"]).optional(),
 });
 const sessionListQuery = z.object({ limit: z.coerce.number().int().positive().optional() });
+const memoryRecordDoc = z
+  .object(memoryRecordSchema.shape)
+  .openapi("MemoryRecord", { description: "A durable memory record scoped to a user, project, or session." });
+const memoryArchiveRecordDoc = z
+  .object(memoryArchiveRecordSchema.shape)
+  .openapi("MemoryArchiveRecord", { description: "A retired memory record, kept for restoration or audit." });
+const memoryListResponseSchema = z
+  .array(memoryRecordDoc)
+  .openapi("MemoryList", { description: "Memory records matching a query." });
+const memoryArchiveListResponseSchema = z
+  .array(memoryArchiveRecordDoc)
+  .openapi("MemoryArchiveList", { description: "Archived memory records matching a query." });
+const retireResultSchema = z
+  .object({ retired: z.array(z.string()) })
+  .openapi("RetireResult", { description: "Ids of the memories that were retired." });
+const embeddingsResultSchema = z
+  .object({ embeddings: z.record(z.string(), z.string()) })
+  .openapi("EmbeddingsResult", { description: "Base64-encoded vector embeddings, keyed by memory id." });
+const sessionSchema = z
+  .object(saveSessionSchema.shape)
+  .openapi("Session", { description: "A chat session transcript." });
+const sessionListResponseSchema = z
+  .array(sessionSchema)
+  .openapi("SessionList", { description: "Sessions matching a query." });
+const activeSessionSchema = z
+  .object({ id: z.string().nullable() })
+  .openapi("ActiveSession", { description: "The id of the owner's active session, or null if none is set." });
+const sessionMessagesResponseSchema = z
+  .array(z.unknown())
+  .openapi("SessionMessages", { description: "Messages within a session matching a search query." });
 
 async function appendSession(c: Context) {
   const owner = await ownerId(c.req.raw);
@@ -99,6 +144,13 @@ app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
 const openApiDoc = {
   openapi: "3.0.3" as const,
   info: { title: "Acolyte Cloud API", version: "1.0.0", description: "Authenticated memory and session storage." },
+  servers: [{ url: "https://cloud.acolyte.sh", description: "Production" }],
+  tags: [
+    { name: "System", description: "Service health." },
+    { name: "Memories", description: "Durable memory records scoped to a user, project, or session." },
+    { name: "Embeddings", description: "Vector embeddings backing semantic memory search." },
+    { name: "Sessions", description: "Chat session transcripts and the active-session pointer." },
+  ],
 };
 const referenceConfig = { cdn: scalarCdn, url: "/doc", pageTitle: "Acolyte Cloud API reference" };
 
@@ -171,6 +223,7 @@ app.openapi(
     method: "get",
     path: "/api/health",
     tags: ["System"],
+    operationId: "checkHealth",
     summary: "Check API availability",
     responses: { 200: { content: { "application/json": { schema: healthResponseSchema } }, description: "Available" } },
   }),
@@ -260,6 +313,8 @@ app.openapi(
     path: "/api/v1/memories/{id}",
     tags: tags.memories,
     security: bearerSecurity,
+    operationId: "deleteMemory",
+    summary: "Delete a memory",
     request: { params: idParams },
     responses: { ...noContent, ...unauthorized },
   }),
@@ -411,6 +466,8 @@ app.openapi(
     path: "/api/v1/memories/embeddings/{id}",
     tags: tags.embeddings,
     security: bearerSecurity,
+    operationId: "deleteEmbedding",
+    summary: "Delete an embedding",
     request: { params: idParams },
     responses: { ...noContent, ...unauthorized },
   }),
@@ -631,6 +688,8 @@ app.openapi(
     path: "/api/v1/sessions/{id}",
     tags: tags.sessions,
     security: bearerSecurity,
+    operationId: "deleteSession",
+    summary: "Delete a session",
     request: { params: idParams },
     responses: { ...noContent, ...unauthorized },
   }),
@@ -672,126 +731,235 @@ app.all("/api/v1/*", async (c) => {
   return isResponse(owner) ? owner : c.json({ error: "Method not allowed" }, 405);
 });
 
-for (const [method, path, schema, description, routeTags, responses, params] of [
-  [
-    "post",
-    "/api/v1/memories",
-    writeMemorySchema,
-    "A memory record to create or update.",
-    tags.memories,
-    noContentResponses,
-  ],
-  [
-    "post",
-    "/api/v1/memories/touch-recalled",
-    touchRecalledSchema,
-    "Memory ids to mark recalled.",
-    tags.memories,
-    noContentResponses,
-  ],
-  [
-    "post",
-    "/api/v1/memories/retire",
-    retireMemoriesSchema,
-    "Memory ids and their retirement disposition.",
-    tags.memories,
-    successResponses,
-  ],
-  [
-    "post",
-    "/api/v1/memories/restore",
-    restoreMemoriesSchema,
-    "Archived memory ids to restore.",
-    tags.memories,
-    successResponses,
-  ],
-  [
-    "post",
-    "/api/v1/memories/embeddings",
-    writeEmbeddingSchema,
-    "An embedding to write.",
-    tags.embeddings,
-    noContentResponses,
-  ],
-  [
-    "post",
-    "/api/v1/memories/embeddings/get",
-    getEmbeddingsSchema,
-    "Embedding ids to retrieve.",
-    tags.embeddings,
-    successResponses,
-  ],
-  [
-    "post",
-    "/api/v1/memories/embeddings/search",
-    searchEmbeddingsSchema,
-    "An embedding similarity query.",
-    tags.embeddings,
-    successResponses,
-  ],
-  ["post", "/api/v1/sessions", saveSessionSchema, "A session to create or update.", tags.sessions, noContentResponses],
-  [
-    "put",
-    "/api/v1/sessions/active",
-    setActiveSessionSchema,
-    "The active session id.",
-    tags.sessions,
-    noContentResponses,
-  ],
-  [
-    "patch",
-    "/api/v1/sessions/{id}/append",
-    appendSessionSchema,
-    "An incremental session update.",
-    tags.sessions,
-    appendResponses,
-    idParams,
-  ],
-  [
-    "post",
-    "/api/v1/sessions/{id}/search",
-    searchSessionSchema,
-    "A session message query.",
-    tags.sessions,
-    successResponses,
-    idParams,
-  ],
+for (const route of [
+  {
+    method: "post",
+    path: "/api/v1/memories",
+    schema: writeMemorySchema,
+    description: "A memory record to create or update.",
+    tags: tags.memories,
+    operationId: "writeMemory",
+    summary: "Create or update a memory",
+    responses: noContentResponses,
+  },
+  {
+    method: "post",
+    path: "/api/v1/memories/touch-recalled",
+    schema: touchRecalledSchema,
+    description: "Memory ids to mark recalled.",
+    tags: tags.memories,
+    operationId: "touchRecalledMemories",
+    summary: "Mark memories as recalled",
+    responses: noContentResponses,
+  },
+  {
+    method: "post",
+    path: "/api/v1/memories/retire",
+    schema: retireMemoriesSchema,
+    description: "Memory ids and their retirement disposition.",
+    tags: tags.memories,
+    operationId: "retireMemories",
+    summary: "Retire memories to the archive",
+    responses: {
+      ...successResponses,
+      200: {
+        description: "Retired memory ids",
+        content: { "application/json": { schema: retireResultSchema } },
+      },
+    },
+  },
+  {
+    method: "post",
+    path: "/api/v1/memories/restore",
+    schema: restoreMemoriesSchema,
+    description: "Archived memory ids to restore.",
+    tags: tags.memories,
+    operationId: "restoreMemories",
+    summary: "Restore memories from the archive",
+    responses: {
+      ...successResponses,
+      200: { description: "Restored memories", content: { "application/json": { schema: memoryListResponseSchema } } },
+    },
+  },
+  {
+    method: "post",
+    path: "/api/v1/memories/embeddings",
+    schema: writeEmbeddingSchema,
+    description: "An embedding to write.",
+    tags: tags.embeddings,
+    operationId: "writeEmbedding",
+    summary: "Create or update an embedding",
+    responses: noContentResponses,
+  },
+  {
+    method: "post",
+    path: "/api/v1/memories/embeddings/get",
+    schema: getEmbeddingsSchema,
+    description: "Embedding ids to retrieve.",
+    tags: tags.embeddings,
+    operationId: "getEmbeddings",
+    summary: "Get embeddings by id",
+    responses: {
+      ...successResponses,
+      200: { description: "Embeddings by id", content: { "application/json": { schema: embeddingsResultSchema } } },
+    },
+  },
+  {
+    method: "post",
+    path: "/api/v1/memories/embeddings/search",
+    schema: searchEmbeddingsSchema,
+    description: "An embedding similarity query.",
+    tags: tags.embeddings,
+    operationId: "searchEmbeddings",
+    summary: "Search memories by embedding similarity",
+    responses: {
+      ...successResponses,
+      200: { description: "Matching memories", content: { "application/json": { schema: memoryListResponseSchema } } },
+    },
+  },
+  {
+    method: "post",
+    path: "/api/v1/sessions",
+    schema: saveSessionSchema,
+    description: "A session to create or update.",
+    tags: tags.sessions,
+    operationId: "saveSession",
+    summary: "Create or update a session",
+    responses: noContentResponses,
+  },
+  {
+    method: "put",
+    path: "/api/v1/sessions/active",
+    schema: setActiveSessionSchema,
+    description: "The active session id.",
+    tags: tags.sessions,
+    operationId: "setActiveSession",
+    summary: "Set the active session id",
+    responses: noContentResponses,
+  },
+  {
+    method: "patch",
+    path: "/api/v1/sessions/{id}/append",
+    schema: appendSessionSchema,
+    description: "An incremental session update.",
+    tags: tags.sessions,
+    operationId: "appendSession",
+    summary: "Append to a session",
+    responses: appendResponses,
+    params: idParams,
+  },
+  {
+    method: "post",
+    path: "/api/v1/sessions/{id}/search",
+    schema: searchSessionSchema,
+    description: "A session message query.",
+    tags: tags.sessions,
+    operationId: "searchSessionMessages",
+    summary: "Search a session's messages",
+    responses: {
+      ...successResponses,
+      200: {
+        description: "Matching messages",
+        content: { "application/json": { schema: sessionMessagesResponseSchema } },
+      },
+    },
+    params: idParams,
+  },
 ] as const) {
   app.openAPIRegistry.registerPath({
-    method,
-    path,
-    tags: routeTags,
+    method: route.method,
+    path: route.path,
+    tags: route.tags,
     security: bearerSecurity,
+    operationId: route.operationId,
+    summary: route.summary,
     request: {
-      ...(params ? { params } : {}),
-      body: { content: { "application/json": { schema } }, description, required: true },
+      ...("params" in route ? { params: route.params } : {}),
+      body: {
+        content: { "application/json": { schema: route.schema } },
+        description: route.description,
+        required: true,
+      },
     },
-    responses,
+    responses: route.responses,
   });
 }
 
-for (const [path, query, routeTags, responses] of [
-  [
-    "/api/v1/memories",
-    memoryListQuery,
-    tags.memories,
-    { 200: { description: "Memories" }, 400: { description: "Invalid kind" }, ...unauthorized },
-  ],
-  [
-    "/api/v1/memories/archive",
-    listArchiveMemoriesSchema,
-    tags.memories,
-    { 200: { description: "Archived memories" }, ...invalidRequest },
-  ],
-  ["/api/v1/sessions", sessionListQuery, tags.sessions, { 200: { description: "Sessions" }, ...unauthorized }],
+for (const route of [
+  {
+    path: "/api/v1/memories",
+    query: memoryListQuery,
+    tags: tags.memories,
+    operationId: "listMemories",
+    summary: "List memories",
+    responses: {
+      200: { description: "Memories", content: { "application/json": { schema: memoryListResponseSchema } } },
+      400: jsonError("Invalid kind"),
+      ...unauthorized,
+    },
+  },
+  {
+    path: "/api/v1/memories/archive",
+    query: listArchiveMemoriesSchema,
+    tags: tags.memories,
+    operationId: "listArchivedMemories",
+    summary: "List archived memories",
+    responses: {
+      200: {
+        description: "Archived memories",
+        content: { "application/json": { schema: memoryArchiveListResponseSchema } },
+      },
+      ...invalidRequest,
+    },
+  },
+  {
+    path: "/api/v1/sessions",
+    query: sessionListQuery,
+    tags: tags.sessions,
+    operationId: "listSessions",
+    summary: "List sessions",
+    responses: {
+      200: { description: "Sessions", content: { "application/json": { schema: sessionListResponseSchema } } },
+      ...unauthorized,
+    },
+  },
+  {
+    path: "/api/v1/sessions/active",
+    tags: tags.sessions,
+    operationId: "getActiveSession",
+    summary: "Get the active session id",
+    responses: {
+      200: { description: "Active session id", content: { "application/json": { schema: activeSessionSchema } } },
+      ...unauthorized,
+    },
+  },
+  {
+    path: "/api/v1/sessions/{id}",
+    params: idParams,
+    tags: tags.sessions,
+    operationId: "getSession",
+    summary: "Get a session by id",
+    responses: {
+      200: {
+        description: "Session, or null if not found",
+        content: { "application/json": { schema: sessionSchema.nullable() } },
+      },
+      ...unauthorized,
+    },
+  },
 ] as const) {
   app.openAPIRegistry.registerPath({
     method: "get",
-    path,
-    tags: routeTags,
+    path: route.path,
+    tags: route.tags,
     security: bearerSecurity,
-    request: { query },
-    responses,
+    operationId: route.operationId,
+    summary: route.summary,
+    request: {
+      ...("query" in route ? { query: route.query } : {}),
+      ...("params" in route ? { params: route.params } : {}),
+    },
+    responses: route.responses,
   });
 }
 
