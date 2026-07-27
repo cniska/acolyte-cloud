@@ -102,7 +102,63 @@ const openApiDoc = {
 };
 const referenceConfig = { cdn: scalarCdn, url: "/doc", pageTitle: "Acolyte Cloud API reference" };
 
-app.get("/", (c) => c.redirect("/index.html"));
+const favicon =
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgcm9sZT0iaW1nIiBhcmlhLWxhYmVsPSJSb2JvdCBlbW9qaSBmYXZpY29uIj48dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9ImNlbnRyYWwiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iNTIiPvCfpJY8L3RleHQ+PC9zdmc+";
+
+const landingPage = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="${favicon}">
+  <title>Acolyte Cloud</title>
+  <style>
+    @keyframes cursor-blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #020617;
+      color: #A56EFF;
+    }
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      font-size: 1.25rem;
+      letter-spacing: 0.03em;
+      gap: 0.25em;
+    }
+    .prompt {
+      font-size: 0.78em;
+      opacity: 0.7;
+    }
+    .cursor {
+      display: inline-block;
+      height: 1.05em;
+      width: 0.55em;
+      background: currentColor;
+      opacity: 0.5;
+      animation: cursor-blink 1s steps(2, start) infinite;
+    }
+  </style>
+</head>
+<body>
+  <span class="logo">
+    <span class="prompt">&#10095;</span>
+    <span>acolyte</span>
+    <span class="cursor"></span>
+  </span>
+</body>
+</html>`;
+
+app.get("/", (c) => c.html(landingPage));
 
 app.doc("/api/doc", openApiDoc);
 app.doc("/doc", openApiDoc);

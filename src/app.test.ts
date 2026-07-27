@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ sql: vi.fn(), verifyAuth: vi.fn() }));
@@ -14,10 +13,15 @@ beforeEach(() => {
 });
 
 describe("public API", () => {
-  test("keeps the public landing page", async () => {
-    const landing = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
-    expect(landing).toContain("<title>Acolyte Cloud</title>");
-    expect(landing).toContain("<span>acolyte</span>");
+  test("serves the landing page at root", async () => {
+    const response = await app.request("https://cloud.example/");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    const body = await response.text();
+    expect(body).toContain("<title>Acolyte Cloud</title>");
+    expect(body).toContain("<span>acolyte</span>");
+    expect(body).toContain('rel="icon"');
   });
 
   test("serves an OpenAPI 3.0.3 document", async () => {
