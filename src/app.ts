@@ -96,12 +96,18 @@ app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
   bearerFormat: "JWT",
 });
 
-app.doc("/api/doc", {
-  openapi: "3.0.3",
+const openApiDoc = {
+  openapi: "3.0.3" as const,
   info: { title: "Acolyte Cloud API", version: "1.0.0", description: "Authenticated memory and session storage." },
-});
+};
+const referenceConfig = { cdn: scalarCdn, url: "/doc", pageTitle: "Acolyte Cloud API reference" };
 
-app.get("/api/reference", apiReference({ cdn: scalarCdn, url: "/doc", pageTitle: "Acolyte Cloud API reference" }));
+app.doc("/api/doc", openApiDoc);
+app.doc("/doc", openApiDoc);
+
+app.get("/api/reference", apiReference(referenceConfig));
+app.get("/reference", apiReference(referenceConfig));
+
 app.openapi(
   createRoute({
     method: "get",
@@ -112,6 +118,7 @@ app.openapi(
   }),
   (c) => c.json({ status: "ok" as const }),
 );
+app.get("/health", (c) => c.json({ status: "ok" as const }));
 
 app.openapi(
   createRoute({

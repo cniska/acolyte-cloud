@@ -2,10 +2,6 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "hono",
   "buildCommand": "pnpm build:contract",
-  "rewrites": [
-    { "source": "/doc", "destination": "/api/doc" },
-    { "source": "/reference", "destination": "/api/reference" },
-    { "source": "/health", "destination": "/api/health" }
-  ],
+  "rewrites": [{ "source": "/", "destination": "/index.html" }],
   "regions": ["fra1"]
 }
