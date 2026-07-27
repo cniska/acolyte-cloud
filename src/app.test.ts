@@ -156,6 +156,20 @@ describe("public API", () => {
     );
   });
 
+  test("rejects invalid input with a per-field message, never the raw ZodError object", async () => {
+    const response = await app.request("https://cloud.example/api/v1/memories", {
+      method: "POST",
+      body: JSON.stringify({ record: { id: "", kind: "bogus" } }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.requestId).toBe(response.headers.get("x-request-id"));
+    expect(body.error).toContain("observation");
+    expect(body.error).not.toContain("Zod");
+    expect(body.error).not.toContain("issues");
+  });
+
   test("keeps unauthorized API errors", async () => {
     mocks.verifyAuth.mockResolvedValue({ ok: false, error: new Response("Unauthorized", { status: 401 }) });
 
@@ -214,5 +228,32 @@ describe("public API", () => {
 
     expect(await response.json()).toEqual([{ id: "mem_old", scopeKey: "user:1", kind: "stored", content: "old fact" }]);
     expect(mocks.sql.mock.calls[0][1]).toEqual(["owner_1", ["mem_old"]]);
+  });
+});
+
+describe("error handling", () => {
+  test("returns a JSON 404 for an unrecognized path", async () => {
+    const response = await app.request("https://cloud.example/totally/bogus/path");
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Not found", requestId: response.headers.get("x-request-id") });
+  });
+
+  test("returns a JSON 500 and does not leak internals when a handler throws", async () => {
+    mocks.sql.mockRejectedValue(new Error("connection reset"));
+
+    const response = await app.request("https://cloud.example/api/v1/sessions");
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({
+      error: "Internal server error",
+      requestId: response.headers.get("x-request-id"),
+    });
+  });
+
+  test("stamps every response with a request id", async () => {
+    const response = await app.request("https://cloud.example/api/health");
+
+    expect(response.headers.get("x-request-id")).toMatch(/^[0-9a-f-]{36}$/);
   });
 });

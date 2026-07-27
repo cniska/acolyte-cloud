@@ -19,17 +19,24 @@ import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { verifyAuth } from "./auth.js";
 import { getDb } from "./db.js";
+import { invalidRequestMessage, notFound, onError, validationHook } from "./errors.js";
 import { stripNulls } from "./json.js";
+import { type AppEnv, observability } from "./observability.js";
 import { base64ToVector, parseJson, vectorToBase64 } from "./parse.js";
 
-const app = new OpenAPIHono();
+const app = new OpenAPIHono<AppEnv>({ defaultHook: validationHook });
+app.use("*", observability);
+app.notFound(notFound);
+app.onError(onError);
 const tags = {
   memories: ["Memories"],
   embeddings: ["Embeddings"],
   sessions: ["Sessions"],
 };
 const bearerSecurity = [{ bearerAuth: [] }];
-const errorSchema = z.object({ error: z.string() }).openapi("Error", { description: "A request failure and why." });
+const errorSchema = z
+  .object({ error: z.string(), requestId: z.string() })
+  .openapi("Error", { description: "A request failure and why, tagged with the request id from the response header." });
 // verifyAuth() rejects with a plain-text Response, not JSON: the 401 schema
 // must match that or the doc would describe a body the API never sends.
 const jsonError = (description: string) => ({
@@ -48,7 +55,8 @@ const successResponses = { 200: { description: "Success" }, ...invalidRequest };
 const appendResponses = { ...noContentResponses, 404: jsonError("Session not found") };
 const scalarCdn = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.63.0";
 const validMemoryKinds = new Set(["observation", "stored"]);
-const errorResponse = (error: string) => Response.json({ error }, { status: 400 });
+const errorResponse = (c: Context<AppEnv>, error: string) =>
+  Response.json({ error, requestId: c.get("requestId") }, { status: 400 });
 const healthResponseSchema = z
   .object({ status: z.literal("ok") })
   .openapi("HealthResponse", { description: "Confirms the API is reachable." });
@@ -93,9 +101,9 @@ async function appendSession(c: Context) {
   const owner = await ownerId(c.req.raw);
   if (isResponse(owner)) return owner;
   const body = await parseJson(c.req.raw);
-  if (!body) return errorResponse("Invalid JSON");
+  if (!body) return errorResponse(c, "Invalid JSON");
   const parsed = appendSessionSchema.safeParse(body);
-  if (!parsed.success) return errorResponse(parsed.error.message);
+  if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
   const { messages, tokenUsage, updatedAt, model, title, workspace, workspaceName, workspaceBranch } = parsed.data;
   const sets = ["updated_at = $3"];
   const params: unknown[] = [owner, c.req.param("id"), updatedAt];
@@ -123,7 +131,9 @@ async function appendSession(c: Context) {
     `UPDATE sessions SET ${sets.join(", ")} WHERE owner_id = $1 AND id = $2 RETURNING id`,
     params,
   );
-  return result.length === 0 ? c.json({ error: "Session not found" }, 404) : c.body(null, 204);
+  return result.length === 0
+    ? c.json({ error: "Session not found", requestId: c.get("requestId") }, 404)
+    : c.body(null, 204);
 }
 
 async function ownerId(request: Request): Promise<string | Response> {
@@ -248,7 +258,7 @@ app.openapi(
     if (isResponse(owner)) return owner;
     const scopeKey = c.req.query("scopeKey");
     const kind = c.req.query("kind");
-    if (kind && !validMemoryKinds.has(kind)) return errorResponse("Invalid kind");
+    if (kind && !validMemoryKinds.has(kind)) return errorResponse(c, "Invalid kind");
     const conditions = ["owner_id = $1"];
     const params: unknown[] = [owner];
     if (scopeKey) {
@@ -281,9 +291,9 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
+    if (!body) return errorResponse(c, "Invalid JSON");
     const parsed = writeMemorySchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const { record } = parsed.data;
     await getDb()(
       `INSERT INTO memories (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic)
@@ -338,9 +348,9 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
+    if (!body) return errorResponse(c, "Invalid JSON");
     const parsed = touchRecalledSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const placeholders = parsed.data.ids.map((_, i) => `$${i + 2}`).join(", ");
     await getDb()(`UPDATE memories SET last_recalled_at = now() WHERE owner_id = $1 AND id IN (${placeholders})`, [
       owner,
@@ -362,7 +372,7 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const parsed = retireMemoriesSchema.safeParse(await parseJson(c.req.raw));
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const { ids, disposition } = parsed.data;
     const rows = await getDb()(
       `WITH moved AS (DELETE FROM memories WHERE owner_id = $1 AND id = ANY($2) RETURNING *),
@@ -387,7 +397,7 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const parsed = listArchiveMemoriesSchema.safeParse(c.req.query());
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const conditions = ["owner_id = $1"];
     const params: unknown[] = [owner];
     for (const [column, value] of Object.entries(parsed.data))
@@ -422,7 +432,7 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const parsed = restoreMemoriesSchema.safeParse(await parseJson(c.req.raw));
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const rows = await getDb()(
       `WITH restored AS (DELETE FROM memory_archive WHERE owner_id = $1 AND id = ANY($2) RETURNING *),
        inserted AS (INSERT INTO memories (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic)
@@ -446,11 +456,11 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
+    if (!body) return errorResponse(c, "Invalid JSON");
     const parsed = writeEmbeddingSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const vector = base64ToVector(parsed.data.embedding);
-    if (!vector) return errorResponse("Invalid embedding");
+    if (!vector) return errorResponse(c, "Invalid embedding");
     await getDb()(
       `INSERT INTO memory_embeddings (id, owner_id, scope_key, embedding) VALUES ($1, $2, $3, $4)
       ON CONFLICT (owner_id, id) DO UPDATE SET scope_key = EXCLUDED.scope_key, embedding = EXCLUDED.embedding`,
@@ -491,9 +501,9 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
+    if (!body) return errorResponse(c, "Invalid JSON");
     const parsed = getEmbeddingsSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     if (parsed.data.ids.length === 0) return c.json({ embeddings: {} });
     const placeholders = parsed.data.ids.map((_, i) => `$${i + 2}`).join(", ");
     const rows = await getDb()(
@@ -518,11 +528,11 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
+    if (!body) return errorResponse(c, "Invalid JSON");
     const parsed = searchEmbeddingsSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const vector = base64ToVector(parsed.data.queryEmbedding);
-    if (!vector) return errorResponse("Invalid embedding");
+    if (!vector) return errorResponse(c, "Invalid embedding");
     const { scopeKey, kind, limit } = parsed.data;
     const conditions = ["e.owner_id = $1"];
     const params: unknown[] = [owner];
@@ -581,9 +591,9 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
+    if (!body) return errorResponse(c, "Invalid JSON");
     const parsed = saveSessionSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const session = parsed.data;
     await getDb()(
       `INSERT INTO sessions (id, owner_id, created_at, updated_at, model, title, workspace, workspace_name, workspace_branch, messages, token_usage)
@@ -636,9 +646,9 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
+    if (!body) return errorResponse(c, "Invalid JSON");
     const parsed = setActiveSessionSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     await getDb()(
       `INSERT INTO active_sessions (owner_id, session_id) VALUES ($1, $2)
       ON CONFLICT (owner_id) DO UPDATE SET session_id = EXCLUDED.session_id`,
@@ -714,9 +724,9 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const body = await parseJson(c.req.raw);
-    if (!body) return errorResponse("Invalid JSON");
+    if (!body) return errorResponse(c, "Invalid JSON");
     const parsed = searchSessionSchema.safeParse(body);
-    if (!parsed.success) return errorResponse(parsed.error.message);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const rows = await getDb()(
       `SELECT m.value FROM sessions s, jsonb_array_elements(s.messages) AS m WHERE s.owner_id = $1 AND s.id = $2
       AND m.value->>'kind' IS DISTINCT FROM 'status' AND m.value->>'content' ILIKE '%' || $3 || '%' LIMIT $4`,
@@ -728,7 +738,7 @@ app.openapi(
 
 app.all("/api/v1/*", async (c) => {
   const owner = await ownerId(c.req.raw);
-  return isResponse(owner) ? owner : c.json({ error: "Method not allowed" }, 405);
+  return isResponse(owner) ? owner : c.json({ error: "Method not allowed", requestId: c.get("requestId") }, 405);
 });
 
 for (const route of [
