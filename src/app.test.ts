@@ -7,6 +7,17 @@ vi.mock("./db.js", () => ({ getDb: () => mocks.sql }));
 
 import { app } from "./app.js";
 
+const archiveRecord = {
+  id: "mem_old",
+  scopeKey: "user:1",
+  kind: "stored",
+  content: "old fact",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  tokenEstimate: 2,
+  retiredAt: "2026-01-02T00:00:00.000Z",
+  disposition: { kind: "superseded", by: ["mem_new"] },
+};
+
 beforeEach(() => {
   mocks.sql.mockReset();
   mocks.verifyAuth.mockReset().mockResolvedValue({ ok: true, ownerId: "owner_1" });
@@ -50,6 +61,7 @@ describe("public API", () => {
       ["/api/v1/memories/touch-recalled", "post"],
       ["/api/v1/memories/retire", "post"],
       ["/api/v1/memories/restore", "post"],
+      ["/api/v1/memories/archive", "post"],
       ["/api/v1/memories/embeddings", "post"],
       ["/api/v1/memories/embeddings/get", "post"],
       ["/api/v1/memories/embeddings/search", "post"],
@@ -216,6 +228,100 @@ describe("public API", () => {
 
     expect(await response.json()).toMatchObject([{ disposition: { kind: "superseded", by: ["mem_new"] } }]);
     expect(mocks.sql.mock.calls[0][1]).toEqual(["owner_1", "user:1", "superseded"]);
+  });
+
+  test("repeating a retirement overwrites the archive record instead of failing", async () => {
+    mocks.sql.mockResolvedValue([{ id: "mem_old" }]);
+
+    await app.request("https://cloud.example/api/v1/memories/retire", {
+      method: "POST",
+      body: JSON.stringify({ ids: ["mem_old"], disposition: { kind: "noise" } }),
+    });
+
+    expect(mocks.sql.mock.calls[0][0]).toContain("ON CONFLICT (owner_id, id) DO UPDATE");
+  });
+
+  test("writes an archive record with the caller's retirement time and disposition", async () => {
+    mocks.sql.mockResolvedValue([]);
+
+    const response = await app.request("https://cloud.example/api/v1/memories/archive", {
+      method: "POST",
+      body: JSON.stringify({ record: archiveRecord }),
+    });
+
+    expect(response.status).toBe(204);
+    expect(mocks.sql.mock.calls[0][1]).toEqual([
+      "mem_old",
+      "owner_1",
+      "user:1",
+      "stored",
+      "old fact",
+      2,
+      "2026-01-01T00:00:00.000Z",
+      null,
+      null,
+      "2026-01-02T00:00:00.000Z",
+      "superseded",
+      '["mem_new"]',
+    ]);
+  });
+
+  test("an archive write drops any live copy of the record and its embedding", async () => {
+    mocks.sql.mockResolvedValue([]);
+
+    await app.request("https://cloud.example/api/v1/memories/archive", {
+      method: "POST",
+      body: JSON.stringify({ record: archiveRecord }),
+    });
+
+    const sql = mocks.sql.mock.calls[0][0];
+    expect(sql).toContain("DELETE FROM memories");
+    expect(sql).toContain("DELETE FROM memory_embeddings");
+    expect(sql).toContain("ON CONFLICT (owner_id, id) DO UPDATE");
+  });
+
+  test("repeating an archive write stores the latest values", async () => {
+    mocks.sql.mockResolvedValue([]);
+
+    const first = await app.request("https://cloud.example/api/v1/memories/archive", {
+      method: "POST",
+      body: JSON.stringify({ record: archiveRecord }),
+    });
+    const second = await app.request("https://cloud.example/api/v1/memories/archive", {
+      method: "POST",
+      body: JSON.stringify({
+        record: { ...archiveRecord, content: "corrected fact", disposition: { kind: "noise" } },
+      }),
+    });
+
+    expect(first.status).toBe(204);
+    expect(second.status).toBe(204);
+    expect(mocks.sql.mock.calls[1][1]).toEqual([
+      "mem_old",
+      "owner_1",
+      "user:1",
+      "stored",
+      "corrected fact",
+      2,
+      "2026-01-01T00:00:00.000Z",
+      null,
+      null,
+      "2026-01-02T00:00:00.000Z",
+      "noise",
+      null,
+    ]);
+  });
+
+  test("rejects an archive write with no retirement time", async () => {
+    const { retiredAt, ...withoutRetiredAt } = archiveRecord;
+
+    const response = await app.request("https://cloud.example/api/v1/memories/archive", {
+      method: "POST",
+      body: JSON.stringify({ record: withoutRetiredAt }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(mocks.sql).not.toHaveBeenCalled();
   });
 
   test("restores only archive records owned by the caller", async () => {

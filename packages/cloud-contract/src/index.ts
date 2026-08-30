@@ -46,6 +46,8 @@ export const memoryArchiveRecordSchema = memoryRecordSchema.extend({
   disposition: memoryDispositionSchema,
 });
 
+export const writeArchiveMemorySchema = z.object({ record: memoryArchiveRecordSchema });
+
 export const writeEmbeddingSchema = z.object({
   id: z.string().min(1),
   scopeKey: z.string().min(1),
@@ -104,6 +106,7 @@ export type RetireMemories = z.infer<typeof retireMemoriesSchema>;
 export type RestoreMemories = z.infer<typeof restoreMemoriesSchema>;
 export type ListArchiveMemories = z.infer<typeof listArchiveMemoriesSchema>;
 export type MemoryArchiveRecord = z.infer<typeof memoryArchiveRecordSchema>;
+export type WriteArchiveMemory = z.infer<typeof writeArchiveMemorySchema>;
 export type WriteEmbedding = z.infer<typeof writeEmbeddingSchema>;
 export type GetEmbeddings = z.infer<typeof getEmbeddingsSchema>;
 export type SearchEmbeddings = z.infer<typeof searchEmbeddingsSchema>;

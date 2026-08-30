@@ -95,6 +95,7 @@ The machine-readable OpenAPI 3.0.3 document is served at `/doc`; the interactive
 | | POST | `/api/v1/memories/touch-recalled` | Update recall timestamps |
 | | POST | `/api/v1/memories/retire` | Archive active memories with a disposition |
 | | GET | `/api/v1/memories/archive` | List archived memories |
+| | POST | `/api/v1/memories/archive` | Write an already-retired memory to the archive |
 | | POST | `/api/v1/memories/restore` | Restore archived memories without embeddings |
 | Embeddings | POST | `/api/v1/memories/embeddings` | Write embedding |
 | | POST | `/api/v1/memories/embeddings/get` | Batch get embeddings |

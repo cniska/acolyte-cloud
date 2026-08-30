@@ -39,6 +39,8 @@ Acolyte normally stores memory and session data in a shared cloud service. This 
 - **FR-15** — Retire a batch of memories to the archive with a disposition of `superseded` (citing the superseding memory ids), `capacity`, or `noise`; retiring also deletes the memories' embeddings.
 - **FR-16** — List archived memories, optionally filtered by `scopeKey`, `kind`, and/or `disposition`.
 - **FR-17** — Restore a batch of archived memories back to active memory, without their embeddings (a restored memory has no embedding until one is written again).
+- **FR-17a** — Create or update (upsert) an archived memory directly, carrying the client's own retirement time and disposition, so a client holding an already-retired memory does not have to write it as active and then retire it.
+- **FR-17b** — A memory id is present in either active memory or the archive, never both: retiring and archive-writing each remove any active memory holding that id, along with that memory's embedding. Repeating either leaves one archive record holding the latest values.
 
 ### 2.4 Feature coverage — embeddings
 
@@ -109,6 +111,7 @@ Acolyte normally stores memory and session data in a shared cloud service. This 
 - **AC-2** — A memory written by owner A is never returned, updated, or deleted by a request authenticated as owner B, even when using the same record id. *(FR-4, FR-11..21)*
 - **AC-3** — Retiring a set of memories removes them from the active table, adds them to the archive with the given disposition, and removes their embeddings, as one atomic operation — a failure partway through leaves no partial state. *(FR-15, FR-35)*
 - **AC-4** — A memory restored from the archive is retrievable via the active-memory endpoints but returns no embedding until one is written again. *(FR-17, FR-18)*
+- **AC-4a** — A memory written straight to the archive appears in the caller's archive listing with the retirement time and disposition it was given, and not in active memory; repeating the write with changed values updates the one record. Retiring an id that is already archived succeeds and leaves it only in the archive. *(FR-17a, FR-17b)*
 - **AC-5** — Appending to a session id the caller doesn't own or that doesn't exist returns a "not found" response rather than creating a new session. *(FR-25)*
 - **AC-6** — A gzip-compressed request body over the byte limit, and a plain body over the byte limit, are both rejected the same way. *(FR-7, FR-8)*
 - **AC-7** — `/doc` and `/reference` are reachable without authentication and describe every `/api/v1/*` endpoint, including its response schema where one exists. *(FR-29, FR-30, NF-6)*

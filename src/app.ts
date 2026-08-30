@@ -11,6 +11,7 @@ import {
   searchSessionSchema,
   setActiveSessionSchema,
   touchRecalledSchema,
+  writeArchiveMemorySchema,
   writeEmbeddingSchema,
   writeMemorySchema,
 } from "@acolyte/cloud-contract";
@@ -376,8 +377,13 @@ app.openapi(
     const { ids, disposition } = parsed.data;
     const rows = await getDb()(
       `WITH moved AS (DELETE FROM memories WHERE owner_id = $1 AND id = ANY($2) RETURNING *),
-       archived AS (INSERT INTO memory_archive (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic, disposition, superseded_by)
-         SELECT id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic, $3, $4 FROM moved RETURNING id),
+       archived AS (INSERT INTO memory_archive (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic, retired_at, disposition, superseded_by)
+         SELECT id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic, now(), $3, $4 FROM moved
+         ON CONFLICT (owner_id, id) DO UPDATE SET scope_key = EXCLUDED.scope_key, kind = EXCLUDED.kind,
+           content = EXCLUDED.content, token_estimate = EXCLUDED.token_estimate, created_at = EXCLUDED.created_at,
+           last_recalled_at = EXCLUDED.last_recalled_at, topic = EXCLUDED.topic, retired_at = EXCLUDED.retired_at,
+           disposition = EXCLUDED.disposition, superseded_by = EXCLUDED.superseded_by
+         RETURNING id),
        deleted_embeddings AS (DELETE FROM memory_embeddings WHERE owner_id = $1 AND id IN (SELECT id FROM moved)) SELECT id FROM archived`,
       [owner, ids, disposition.kind, disposition.kind === "superseded" ? JSON.stringify(disposition.by) : null],
     );
@@ -417,6 +423,52 @@ app.openapi(
         disposition: disposition === "superseded" ? { kind: disposition, by: supersededBy } : { kind: disposition },
       })),
     );
+  },
+);
+
+app.openapi(
+  createRoute({
+    method: "post",
+    path: "/api/v1/memories/archive",
+    tags: tags.memories,
+    security: bearerSecurity,
+    responses: noContentResponses,
+  }),
+  async (c) => {
+    const owner = await ownerId(c.req.raw);
+    if (isResponse(owner)) return owner;
+    const body = await parseJson(c.req.raw);
+    if (!body) return errorResponse(c, "Invalid JSON");
+    const parsed = writeArchiveMemorySchema.safeParse(body);
+    if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
+    const { record } = parsed.data;
+    // An archived id is retired by definition, so writing one drops any live memory holding that
+    // id and its embedding, leaving the end state a retirement would.
+    await getDb()(
+      `WITH deleted AS (DELETE FROM memories WHERE owner_id = $2 AND id = $1),
+       deleted_embeddings AS (DELETE FROM memory_embeddings WHERE owner_id = $2 AND id = $1)
+       INSERT INTO memory_archive (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic, retired_at, disposition, superseded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+       ON CONFLICT (owner_id, id) DO UPDATE SET scope_key = EXCLUDED.scope_key, kind = EXCLUDED.kind,
+         content = EXCLUDED.content, token_estimate = EXCLUDED.token_estimate, created_at = EXCLUDED.created_at,
+         last_recalled_at = EXCLUDED.last_recalled_at, topic = EXCLUDED.topic, retired_at = EXCLUDED.retired_at,
+         disposition = EXCLUDED.disposition, superseded_by = EXCLUDED.superseded_by`,
+      [
+        record.id,
+        owner,
+        record.scopeKey,
+        record.kind,
+        record.content,
+        record.tokenEstimate,
+        record.createdAt,
+        record.lastRecalledAt ?? null,
+        record.topic ?? null,
+        record.retiredAt,
+        record.disposition.kind,
+        record.disposition.kind === "superseded" ? JSON.stringify(record.disposition.by) : null,
+      ],
+    );
+    return c.body(null, 204);
   },
 );
 
@@ -790,6 +842,16 @@ for (const route of [
       ...successResponses,
       200: { description: "Restored memories", content: { "application/json": { schema: memoryListResponseSchema } } },
     },
+  },
+  {
+    method: "post",
+    path: "/api/v1/memories/archive",
+    schema: writeArchiveMemorySchema,
+    description: "An already-retired memory record to create or update.",
+    tags: tags.memories,
+    operationId: "writeArchivedMemory",
+    summary: "Create or update an archived memory",
+    responses: noContentResponses,
   },
   {
     method: "post",

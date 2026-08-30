@@ -9,6 +9,7 @@ import {
   touchRecalledSchema,
   retireMemoriesSchema,
   restoreMemoriesSchema,
+  writeArchiveMemorySchema,
   writeEmbeddingSchema,
   writeMemorySchema,
 } from "@acolyte/cloud-contract";
@@ -104,6 +105,26 @@ describe("archive schemas", () => {
 
   test("rejects invalid archive filters", () => {
     expect(listArchiveMemoriesSchema.safeParse({ disposition: "unknown" }).success).toBe(false);
+  });
+
+  test("an archive write requires a retirement time and a disposition", () => {
+    const record = {
+      id: "mem_old",
+      scopeKey: "user:1",
+      kind: "stored",
+      content: "old fact",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      tokenEstimate: 2,
+      retiredAt: "2026-01-02T00:00:00.000Z",
+      disposition: { kind: "superseded", by: ["mem_new"] },
+    };
+
+    expect(writeArchiveMemorySchema.safeParse({ record }).success).toBe(true);
+    expect(writeArchiveMemorySchema.safeParse({ record: { ...record, retiredAt: undefined } }).success).toBe(false);
+    expect(writeArchiveMemorySchema.safeParse({ record: { ...record, disposition: undefined } }).success).toBe(false);
+    expect(writeArchiveMemorySchema.safeParse({ record: { ...record, disposition: { kind: "superseded" } } }).success).toBe(
+      false,
+    );
   });
 });
 
