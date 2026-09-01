@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The contract check reads cloud-contract-v* tags, which a shallow clone omits.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -17,3 +20,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
+      # Its own step, not part of verify: release-contract.ts runs verify before it bumps and tags,
+      # so a guard inside verify would block the release that clears it.
+      - run: pnpm check:contract

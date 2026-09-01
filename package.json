@@ -13,6 +13,7 @@
     "test": "vitest run",
     "verify": "pnpm build:contract && pnpm typecheck && pnpm test",
     "deploy:preview": "pnpm verify && pnpm exec vercel build && pnpm exec vercel deploy --prebuilt --yes",
+    "check:contract": "bash scripts/check-contract-released.sh",
     "release:contract": "tsx scripts/release-contract.ts"
   },
   "dependencies": {
