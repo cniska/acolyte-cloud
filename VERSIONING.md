@@ -14,6 +14,12 @@ CLI and the dashboard. Its npm version is the only version anything outside this
   tree or a branch other than `main`, runs `pnpm verify`, writes the changelog from the commits since
   the last tag, and makes the signed commit and the `cloud-contract-v<version>` tag. Pushing the tag
   is what publishes.
+- The publish authenticates through npm trusted publishing: the workflow proves its identity over
+  OIDC, so there is no npm token and no secret to rotate. A publish that fails on authorization is
+  fixed by checking the trusted publisher registered for the package, never by adding a token.
+- A release is done when the publish workflow goes green, not when the tag is pushed. The script
+  printing a tag and the push succeeding say nothing about whether npm received the package;
+  `npm view @acolyte/cloud-contract version` is the answer.
 
 ## The guard
 
