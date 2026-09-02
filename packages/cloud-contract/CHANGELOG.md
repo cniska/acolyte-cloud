@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 - 2026-09-02
+
+- refactor(memory): drop the kind field
+
 ## 0.2.0 - 2026-09-01
 
 - feat(memory): add archive write endpoint
