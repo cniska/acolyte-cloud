@@ -3,7 +3,6 @@ import { z } from "zod/v4";
 export const memoryRecordSchema = z.object({
   id: z.string().min(1),
   scopeKey: z.string().min(1),
-  kind: z.enum(["observation", "stored"]),
   content: z.string().min(1),
   createdAt: z.string().min(1),
   tokenEstimate: z.number().int().min(0),
@@ -37,7 +36,6 @@ export const restoreMemoriesSchema = z.object({
 
 export const listArchiveMemoriesSchema = z.object({
   scopeKey: z.string().min(1).optional(),
-  kind: z.enum(["observation", "stored"]).optional(),
   disposition: z.enum(["superseded", "capacity", "noise"]).optional(),
 });
 
@@ -61,7 +59,6 @@ export const getEmbeddingsSchema = z.object({
 export const searchEmbeddingsSchema = z.object({
   queryEmbedding: z.string().min(1),
   scopeKey: z.string().optional(),
-  kind: z.enum(["observation", "stored"]).optional(),
   limit: z.number().int().min(1).max(100),
 });
 

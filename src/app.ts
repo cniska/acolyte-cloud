@@ -55,7 +55,6 @@ const noContentResponses = { ...noContent, ...invalidRequest };
 const successResponses = { 200: { description: "Success" }, ...invalidRequest };
 const appendResponses = { ...noContentResponses, 404: jsonError("Session not found") };
 const scalarCdn = "https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.63.0";
-const validMemoryKinds = new Set(["observation", "stored"]);
 const errorResponse = (c: Context<AppEnv>, error: string) =>
   Response.json({ error, requestId: c.get("requestId") }, { status: 400 });
 const healthResponseSchema = z
@@ -64,7 +63,6 @@ const healthResponseSchema = z
 const idParams = z.object({ id: z.string().min(1) });
 const memoryListQuery = z.object({
   scopeKey: z.string().optional(),
-  kind: z.enum(["observation", "stored"]).optional(),
 });
 const sessionListQuery = z.object({ limit: z.coerce.number().int().positive().optional() });
 const memoryRecordDoc = z
@@ -250,7 +248,6 @@ app.openapi(
     security: bearerSecurity,
     responses: {
       200: { description: "Memories" },
-      400: { description: "Invalid kind" },
       401: { description: "Unauthorized" },
     },
   }),
@@ -258,20 +255,14 @@ app.openapi(
     const owner = await ownerId(c.req.raw);
     if (isResponse(owner)) return owner;
     const scopeKey = c.req.query("scopeKey");
-    const kind = c.req.query("kind");
-    if (kind && !validMemoryKinds.has(kind)) return errorResponse(c, "Invalid kind");
     const conditions = ["owner_id = $1"];
     const params: unknown[] = [owner];
     if (scopeKey) {
       conditions.push(`scope_key = $${params.length + 1}`);
       params.push(scopeKey);
     }
-    if (kind) {
-      conditions.push(`kind = $${params.length + 1}`);
-      params.push(kind);
-    }
     const rows = await getDb()(
-      `SELECT id, scope_key AS "scopeKey", kind, content, token_estimate AS "tokenEstimate",
+      `SELECT id, scope_key AS "scopeKey", content, token_estimate AS "tokenEstimate",
               created_at AS "createdAt", last_recalled_at AS "lastRecalledAt", topic
        FROM memories WHERE ${conditions.join(" AND ")} ORDER BY created_at DESC`,
       params,
@@ -297,16 +288,15 @@ app.openapi(
     if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const { record } = parsed.data;
     await getDb()(
-      `INSERT INTO memories (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (owner_id, id) DO UPDATE SET scope_key = EXCLUDED.scope_key, kind = EXCLUDED.kind,
+      `INSERT INTO memories (id, owner_id, scope_key, content, token_estimate, created_at, last_recalled_at, topic)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (owner_id, id) DO UPDATE SET scope_key = EXCLUDED.scope_key,
          content = EXCLUDED.content, token_estimate = EXCLUDED.token_estimate,
          last_recalled_at = EXCLUDED.last_recalled_at, topic = EXCLUDED.topic`,
       [
         record.id,
         owner,
         record.scopeKey,
-        record.kind,
         record.content,
         record.tokenEstimate,
         record.createdAt,
@@ -447,9 +437,9 @@ app.openapi(
     await getDb()(
       `WITH deleted AS (DELETE FROM memories WHERE owner_id = $2 AND id = $1),
        deleted_embeddings AS (DELETE FROM memory_embeddings WHERE owner_id = $2 AND id = $1)
-       INSERT INTO memory_archive (id, owner_id, scope_key, kind, content, token_estimate, created_at, last_recalled_at, topic, retired_at, disposition, superseded_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-       ON CONFLICT (owner_id, id) DO UPDATE SET scope_key = EXCLUDED.scope_key, kind = EXCLUDED.kind,
+       INSERT INTO memory_archive (id, owner_id, scope_key, content, token_estimate, created_at, last_recalled_at, topic, retired_at, disposition, superseded_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (owner_id, id) DO UPDATE SET scope_key = EXCLUDED.scope_key,
          content = EXCLUDED.content, token_estimate = EXCLUDED.token_estimate, created_at = EXCLUDED.created_at,
          last_recalled_at = EXCLUDED.last_recalled_at, topic = EXCLUDED.topic, retired_at = EXCLUDED.retired_at,
          disposition = EXCLUDED.disposition, superseded_by = EXCLUDED.superseded_by`,
@@ -457,7 +447,6 @@ app.openapi(
         record.id,
         owner,
         record.scopeKey,
-        record.kind,
         record.content,
         record.tokenEstimate,
         record.createdAt,
@@ -585,22 +574,18 @@ app.openapi(
     if (!parsed.success) return errorResponse(c, invalidRequestMessage(parsed.error));
     const vector = base64ToVector(parsed.data.queryEmbedding);
     if (!vector) return errorResponse(c, "Invalid embedding");
-    const { scopeKey, kind, limit } = parsed.data;
+    const { scopeKey, limit } = parsed.data;
     const conditions = ["e.owner_id = $1"];
     const params: unknown[] = [owner];
     if (scopeKey) {
       conditions.push(`e.scope_key = $${params.length + 1}`);
       params.push(scopeKey);
     }
-    if (kind) {
-      conditions.push(`m.kind = $${params.length + 1}`);
-      params.push(kind);
-    }
     params.push(vector);
     const vectorParam = `$${params.length}`;
     params.push(limit);
     const rows = await getDb()(
-      `SELECT m.id, m.scope_key AS "scopeKey", m.kind, m.content, m.token_estimate AS "tokenEstimate", m.created_at AS "createdAt", m.last_recalled_at AS "lastRecalledAt", m.topic
+      `SELECT m.id, m.scope_key AS "scopeKey", m.content, m.token_estimate AS "tokenEstimate", m.created_at AS "createdAt", m.last_recalled_at AS "lastRecalledAt", m.topic
        FROM memory_embeddings e JOIN memories m ON m.owner_id = e.owner_id AND m.id = e.id WHERE ${conditions.join(" AND ")}
        ORDER BY e.embedding <=> ${vectorParam}::vector LIMIT $${params.length}`,
       params,

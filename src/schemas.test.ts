@@ -19,7 +19,6 @@ describe("writeMemorySchema", () => {
     record: {
       id: "mem_abc",
       scopeKey: "user_1",
-      kind: "stored" as const,
       content: "hello",
       createdAt: "2026-01-01T00:00:00.000Z",
       tokenEstimate: 3,
@@ -33,11 +32,6 @@ describe("writeMemorySchema", () => {
 
   test("accepts with optional scope", () => {
     expect(writeMemorySchema.safeParse({ ...valid, scope: "user" }).success).toBe(true);
-  });
-
-  test("rejects invalid kind", () => {
-    const input = { record: { ...valid.record, kind: "invalid" } };
-    expect(writeMemorySchema.safeParse(input).success).toBe(false);
   });
 
   test("rejects empty content", () => {
@@ -93,7 +87,6 @@ describe("archive schemas", () => {
       memoryArchiveRecordSchema.safeParse({
         id: "mem_old",
         scopeKey: "user:1",
-        kind: "stored",
         content: "old fact",
         createdAt: "2026-01-01T00:00:00.000Z",
         tokenEstimate: 2,
@@ -111,7 +104,6 @@ describe("archive schemas", () => {
     const record = {
       id: "mem_old",
       scopeKey: "user:1",
-      kind: "stored",
       content: "old fact",
       createdAt: "2026-01-01T00:00:00.000Z",
       tokenEstimate: 2,
@@ -159,8 +151,7 @@ describe("searchEmbeddingsSchema", () => {
 
   test("accepts with optional filters", () => {
     expect(
-      searchEmbeddingsSchema.safeParse({ queryEmbedding: "AAAA", scopeKey: "user_1", kind: "observation", limit: 5 })
-        .success,
+      searchEmbeddingsSchema.safeParse({ queryEmbedding: "AAAA", scopeKey: "user_1", limit: 5 }).success,
     ).toBe(true);
   });
 
@@ -172,9 +163,6 @@ describe("searchEmbeddingsSchema", () => {
     expect(searchEmbeddingsSchema.safeParse({ queryEmbedding: "AAAA", limit: 0 }).success).toBe(false);
   });
 
-  test("rejects invalid kind", () => {
-    expect(searchEmbeddingsSchema.safeParse({ queryEmbedding: "AAAA", kind: "bad", limit: 10 }).success).toBe(false);
-  });
 });
 
 describe("saveSessionSchema", () => {

@@ -10,7 +10,6 @@ import { app } from "./app.js";
 const archiveRecord = {
   id: "mem_old",
   scopeKey: "user:1",
-  kind: "stored",
   content: "old fact",
   createdAt: "2026-01-01T00:00:00.000Z",
   tokenEstimate: 2,
@@ -49,7 +48,6 @@ describe("public API", () => {
     ]);
     expect(document.paths["/api/v1/memories"].get.parameters).toMatchObject([
       { in: "query", name: "scopeKey" },
-      { in: "query", name: "kind" },
     ]);
     expect(document.paths["/api/v1/sessions"].get.parameters).toMatchObject([{ in: "query", name: "limit" }]);
   });
@@ -141,7 +139,6 @@ describe("public API", () => {
         record: {
           id: "mem_1",
           scopeKey: "user:1",
-          kind: "stored",
           content: "fact",
           createdAt: "2026-01-01",
           tokenEstimate: 1,
@@ -171,13 +168,16 @@ describe("public API", () => {
   test("rejects invalid input with a per-field message, never the raw ZodError object", async () => {
     const response = await app.request("https://cloud.example/api/v1/memories", {
       method: "POST",
-      body: JSON.stringify({ record: { id: "", kind: "bogus" } }),
+      body: JSON.stringify({
+        record: { id: "", scopeKey: "user:1", content: "", createdAt: "2026-01-01T00:00:00.000Z", tokenEstimate: 1 },
+      }),
     });
     const body = await response.json();
 
     expect(response.status).toBe(400);
     expect(body.requestId).toBe(response.headers.get("x-request-id"));
-    expect(body.error).toContain("observation");
+    // Both failing fields are named, joined — the shape a raw ZodError would not have.
+    expect(body.error).toContain(";");
     expect(body.error).not.toContain("Zod");
     expect(body.error).not.toContain("issues");
   });
@@ -254,7 +254,6 @@ describe("public API", () => {
       "mem_old",
       "owner_1",
       "user:1",
-      "stored",
       "old fact",
       2,
       "2026-01-01T00:00:00.000Z",
@@ -300,7 +299,6 @@ describe("public API", () => {
       "mem_old",
       "owner_1",
       "user:1",
-      "stored",
       "corrected fact",
       2,
       "2026-01-01T00:00:00.000Z",
@@ -325,14 +323,14 @@ describe("public API", () => {
   });
 
   test("restores only archive records owned by the caller", async () => {
-    mocks.sql.mockResolvedValue([{ id: "mem_old", scopeKey: "user:1", kind: "stored", content: "old fact" }]);
+    mocks.sql.mockResolvedValue([{ id: "mem_old", scopeKey: "user:1", content: "old fact" }]);
 
     const response = await app.request("https://cloud.example/api/v1/memories/restore", {
       method: "POST",
       body: JSON.stringify({ ids: ["mem_old"] }),
     });
 
-    expect(await response.json()).toEqual([{ id: "mem_old", scopeKey: "user:1", kind: "stored", content: "old fact" }]);
+    expect(await response.json()).toEqual([{ id: "mem_old", scopeKey: "user:1", content: "old fact" }]);
     expect(mocks.sql.mock.calls[0][1]).toEqual(["owner_1", ["mem_old"]]);
   });
 });
