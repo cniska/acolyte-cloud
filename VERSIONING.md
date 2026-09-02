@@ -5,8 +5,10 @@ CLI and the dashboard. Its npm version is the only version anything outside this
 
 ## Rules
 
-- While the package is below `1.0.0`, an addition is a minor and a removal or a changed shape is a
-  major. A new schema, or a new optional field on an existing one, is an addition.
+- While the package is below `1.0.0`, a removal or a changed shape is a minor and an addition is a
+  patch. A new schema, or a new optional field on an existing one, is an addition. The major digit
+  stays at `0` until the contract is declared stable, so a breaking change is never what carries it
+  to `1.0.0`.
 - A published version's content is never edited. A mistake ships as the next version.
 - A change under `packages/cloud-contract` is invisible to consumers until it is released. Release
   first, then bump the dependency in the consumer.
